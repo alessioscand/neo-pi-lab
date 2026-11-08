@@ -4,6 +4,8 @@
 #include "frame.h"
 #include "racing.h"
 #include "ui.h"
+#include "tvcore.h"
+#include "smp.h"
 #include <circle/util.h>
 
 TPicture g_Pic = {TRUE, NTSC_OFF, TRUE, NES_PALETTE_NESTOPIA, FALSE, {0}, 0};
@@ -30,13 +32,18 @@ volatile boolean g_bRaceFrame = FALSE;
 static unsigned s_nTvBurst = 0;		// colour burst phase of the frame (0-2)
 static CScreen *s_pVideo = 0;
 static u32 s_Line[PIC_MAX_W * 8], s_Dark[PIC_MAX_W * 8];	// core 0's scratch lines
-static u32 s_TvLine[3][PIC_MAX_W * 8], s_TvDark[3][PIC_MAX_W * 8];	// the TV filter's
+static u32 s_TvLine[2][PIC_MAX_W * 8], s_TvDark[2][PIC_MAX_W * 8];	// the TV filter's two sides
 
-// a line from the TV filter (core 1, or core 0 without it)
-static void TvLineOut (unsigned nRow, unsigned nWorker)
+static void NtscLine (const void *pSource, unsigned nPhase, u32 *pOut)
 {
-	s_pVideo->DrawGameLine (g_NtscBuf, nRow, s_TvLine[nWorker], s_TvDark[nWorker]);
-	if (g_bRaceFrame)
+	ntsc_blargg_line ((const unsigned short *) pSource, nPhase, pOut);
+}
+
+// a filtered line (core 1, or the caller without it)
+static void TvLineOut (unsigned nRow, const u32 *pFiltered, boolean bRace, unsigned nSide)
+{
+	s_pVideo->DrawGameLine (g_NtscBuf, nRow, s_TvLine[nSide], s_TvDark[nSide]);
+	if (bRace)
 	{
 		RaceRowDone (nRow);
 	}
@@ -81,8 +88,8 @@ static void NesLineHook (int nLine, const uint16_t *pPixels)
 						Idx[x] = Idx[NES_W - 1 - x] = 0x0F;
 					}
 				}
-				TvPost (Idx, (s_nTvBurst + (unsigned) nLine) % 3,
-					&g_NtscBuf[nLine * NTSC_OUT_W], (unsigned) nRow);
+				TvPost (Idx, (s_nTvBurst + (unsigned) nLine) % 3, (unsigned) nRow, g_bRaceFrame,
+					&g_NtscBuf[nLine * NTSC_OUT_W]);
 			}
 			else
 			{
@@ -106,6 +113,37 @@ void FrameSetup (CScreen *pVideo)
 	s_pVideo = pVideo;
 	nes_set_line_hook (NesLineHook);
 	TvSetOutput (TvLineOut);
+}
+
+void FrameSetTvMode (int nMode)
+{
+	TvSync ();
+	if (nMode != NTSC_OFF)
+	{
+		ntsc_blargg_setup (nMode);
+		TvSetFilter (NtscLine);
+	}
+}
+
+// a frame of lines through the TV filter, not drawn (start-up check, in LOG.TXT)
+unsigned FrameTvTimeUs (unsigned nLines)
+{
+	static u32 Out[NTSC_OUT_W];
+	static u16 Idx[NTSC_IN_W];
+	for (unsigned x = 0; x < NTSC_IN_W; x++)
+	{
+		Idx[x] = (u16) ((x * 7) & 0x3F);	// many colours, like a busy scene
+	}
+	TvSetOutput (0);
+	u64 t0 = Ticks ();
+	for (unsigned i = 0; i < nLines; i++)
+	{
+		TvPost (Idx, i % 3, i, FALSE, Out);
+	}
+	TvSync ();
+	u64 t1 = Ticks ();
+	TvSetOutput (TvLineOut);
+	return (unsigned) ((t1 - t0) * 1000000 / TicksFreq ());
 }
 
 // vertical blank (the game reads the pads) then the 240 lines, each shown as

@@ -89,7 +89,7 @@ void CKernel::VideoModeTag (char *pOut, size_t nSize)
 void CKernel::SetTvMode (void)
 {
 	m_nFilter = g_Pic.nTvMode == NTSC_OFF && g_Pic.bTvScanlines ? FILTER_SCAN_LIGHT : FILTER_NONE;
-	TvSetup (g_Pic.nTvMode);
+	FrameSetTvMode (g_Pic.nTvMode);
 	ApplyVideoMode ();
 }
 

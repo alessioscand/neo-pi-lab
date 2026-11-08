@@ -92,6 +92,7 @@ public:
 
 private:
 	// kernel.cpp
+	boolean StartCores (void);
 	unsigned LastPlayed (void);
 	void PowerOff (void);
 

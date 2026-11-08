@@ -11,6 +11,11 @@
 #define PROJECT_WIDTH	256
 #define PROJECT_HEIGHT	240
 
+/* TV filter (common/tvcore): one line in (256 palette indices, 16 bits each),
+   the filtered line out (NTSC_OUT_W in ntsc_blargg.h) */
+#define PROJECT_TV_IN_BYTES	(256 * 2)
+#define PROJECT_TV_OUT_W	602
+
 /* Buttons besides the directions, START and SELECT: A B C D (C D = turbo) */
 #define PROJECT_BUTTONS	4
 

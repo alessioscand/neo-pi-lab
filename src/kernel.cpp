@@ -5,8 +5,27 @@
 #include "frame.h"
 #include <circle/machineinfo.h>
 #include <circle/bcmwatchdog.h>
+#include <circle/multicore.h>
+#include <circle/memory.h>
+#include "tvcore.h"
+#include "fbmap.h"
 
 CKernel *CKernel::s_pThis = 0;
+
+// core 1: the TV filter (tvcore.h); cores 2 and 3 stay idle
+class CTvFilterCore : public CMultiCoreSupport
+{
+public:
+	CTvFilterCore (void) : CMultiCoreSupport (CMemorySystem::Get ()) {}
+	void Run (unsigned nCore)
+	{
+		if (nCore == 1)
+		{
+			FbSetMair ();			// the framebuffer's write-combining type
+			TvWorkerRun ();
+		}
+	}
+};
 
 CKernel::CKernel (void)
 :	m_Timer (&m_Interrupt),
@@ -179,6 +198,21 @@ TShutdownMode CKernel::Run (void)
 	}
 
 	return ShutdownHalt;
+}
+
+// starts core 1 for the TV filter (once); FALSE: it is not running
+boolean CKernel::StartCores (void)
+{
+	CTvFilterCore *pCores = new CTvFilterCore;
+	if (pCores == 0 || !pCores->Initialize ())
+	{
+		return FALSE;
+	}
+	unsigned nWait = CTimer::GetClockTicks ();
+	while (!TvWorkerAlive () && CTimer::GetClockTicks () - nWait < 200000)
+	{
+	}
+	return TvWorkerAlive ();
 }
 
 // the game played last (LAST.TXT), or the first one

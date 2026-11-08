@@ -55,18 +55,18 @@ void CKernel::SetupCoreOnce (void)
 	nes_set_unlimited_sprites (g_Pic.bUnlimSprites);
 
 	// TV filter: core 1 does the work (if it starts)
-	unsigned nWorkers = TvStartCores ();
-	TvSetup (NTSC_COMPOSITE);			// the tables, for the timing check
-	unsigned nUs = TvBenchmarkUs (NES_H - 2 * OVERSCAN_LINES);
+	boolean bCore = StartCores ();
+	FrameSetTvMode (NTSC_COMPOSITE);		// the tables, for the timing check
+	unsigned nUs = FrameTvTimeUs (NES_H - 2 * OVERSCAN_LINES);
 	char Msg[100];
-	if (nWorkers)
+	if (bCore)
 		snprintf (Msg, sizeof Msg, "TV filter: on core 1, a frame of lines in %u.%u ms",
 			  nUs / 1000, (nUs % 1000) / 100);
 	else
 		snprintf (Msg, sizeof Msg, "TV filter: other cores not started, on core 0 (a frame in %u.%u ms)",
 			  nUs / 1000, (nUs % 1000) / 100);
-	Log (Msg, nWorkers ? COLOR_TEXT : COLOR_ERR);
-	TvSetup (g_Pic.nTvMode);
+	Log (Msg, bCore ? COLOR_TEXT : COLOR_ERR);
+	FrameSetTvMode (g_Pic.nTvMode);
 	char Line[100];
 	snprintf (Line, sizeof Line, "Settings: TV filter %s, palette %s, sprites %s", TvName (g_Pic.nTvMode),
 		  PaletteName (g_Pic.nPalette), g_Pic.bUnlimSprites ? "unlimited" : "8 per line");

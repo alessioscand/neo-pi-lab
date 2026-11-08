@@ -3,14 +3,14 @@
  *
  * Each line, as soon as the PPU finishes it, gets its colours from the palette
  * and goes to the screen (the buffer being shown, while racing); with the TV
- * filter it goes to core 1, which filters it and draws it (tvfilter.h).
+ * filter it goes to core 1, which filters it and draws it (tvcore.h).
  */
 #ifndef FRAME_H
 #define FRAME_H
 
 #include "screen.h"
 #include "nes_core.h"
-#include "tvfilter.h"
+#include "ntsc_blargg.h"
 #include <stdint.h>
 
 #define SAMPLE_RATE	48000
@@ -56,6 +56,8 @@ extern volatile unsigned g_Pad[2];		// pads for the next frame (NES_* bits)
 extern volatile boolean g_bRaceFrame;		// this frame is raced
 
 void FrameSetup (CScreen *pVideo);		// once: the line hook, the TV filter's output
+void FrameSetTvMode (int nMode);		// NTSC_*: the TV filter's tables for it
+unsigned FrameTvTimeUs (unsigned nLines);	// how long the TV filter takes for nLines
 void FrameRun (void);				// one frame: emulation, picture and sound
 
 #endif

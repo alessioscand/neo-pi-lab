@@ -6,6 +6,7 @@
 #include "pacing.h"
 #include "racing.h"
 #include "stats.h"
+#include "tvcore.h"
 
 // statistics windows restart after a pause (menu, credits)
 void CKernel::ResetGameStats (void)
@@ -57,7 +58,7 @@ void CKernel::ReportWindow (boolean bFinal)
 		  m_CPUThrottle.GetClockRate () / 1000000, m_CPUThrottle.GetTemperature ());
 	Log (Line, COLOR_TEXT);
 
-	// TV filter: per frame, all cores together (filtering vs drawing on the screen)
+	// TV filter: per frame (filtering vs drawing on the screen)
 	unsigned nFilterUs, nDrawUs, nTvLines;
 	TvTakeStats (&nFilterUs, &nDrawUs, &nTvLines);
 	if (nTvLines >= 224)
@@ -65,9 +66,8 @@ void CKernel::ReportWindow (boolean bFinal)
 		unsigned nFrames = nTvLines / g_NtscSource.nH ? nTvLines / g_NtscSource.nH : 1;
 		unsigned f = nFilterUs / nFrames, d = nDrawUs / nFrames;
 		snprintf (Line, sizeof Line,
-			  "   TV filter: per frame %u.%u ms filtering + %u.%u ms drawing, on %u core%s",
-			  f / 1000, (f % 1000) / 100, d / 1000, (d % 1000) / 100,
-			  TvGetWorkers () ? TvGetWorkers () : 1, TvGetWorkers () > 1 ? "s" : "");
+			  "   TV filter: per frame %u.%u ms filtering + %u.%u ms drawing, on 1 core",
+			  f / 1000, (f % 1000) / 100, d / 1000, (d % 1000) / 100);
 		Log (Line, COLOR_TEXT);
 	}
 

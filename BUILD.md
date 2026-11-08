@@ -54,7 +54,8 @@ m92-pi (nothing NES in them: what they need comes from `src/project.h`).
 - `src/racing.cpp` - beam racing state for the game loop
 - `src/report.cpp`, `src/bench.cpp` - the per-minute report in the log; BENCH
 - `src/nes_core.cpp/.h` - Nestopia wrapper (load, frame, pads, audio, battery saves, states)
-- `src/tvfilter.cpp`, `src/ntsc_blargg.c` - the TV filter (nes_ntsc) on core 1, one line at a time
+- `src/ntsc_blargg.c` - the TV filter (nes_ntsc: S-Video, composite, RF); `common/tvcore.cpp` runs it
+  on core 1, one line at a time
 - `src/screen.h` - `CScreen`, the only interface the kernel draws through; `src/video.cpp` is
   the HDMI one (double-buffered framebuffer, HVS/CPU integer scaling, scanlines, text in the black bands).
   A CRT output on the composite jack would be another `CScreen`, chosen in `kernel.h`
@@ -68,6 +69,7 @@ m92-pi (nothing NES in them: what they need comes from `src/project.h`).
 - `common/fbmap.cpp` - maps the framebuffer as write-combining memory
 - `common/pacing.cpp` - frame delay (without beam racing)
 - `common/stats.cpp` - timing statistics: histograms, averages, percentiles
+- `common/tvcore.cpp` - the TV filter's core: the line queue, the filter (the project's) on its own core
 - `src/Makefile.in`, `build.sh`, `make_release.sh`
 - `tools/resolve_profile.py` - turns `PROFILE.TXT` into time per function, using the kernel's .elf
 - `test/race_sim.cpp` - host simulation of the beam racing plan (late or overwritten lines)
