@@ -5,7 +5,7 @@
 #define PROJECT_H
 
 #define PROJECT_NAME	"nes-pi"
-#define PROJECT_VERSION	"0.1.1"
+#define PROJECT_VERSION	"1.0.0"
 
 /* The emulated picture (with overscan=off: all 240 lines) */
 #define PROJECT_WIDTH	256
