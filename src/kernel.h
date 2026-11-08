@@ -175,7 +175,7 @@ private:
 	CUSBHCIDevice		m_USBHCI;
 	CEMMCDevice		m_EMMC;
 	FATFS			m_FileSystem;
-	CVideoOut		m_Video;
+	CVideoOut		m_Video;	// the screen (HDMI): used through CScreen only
 	CAudioOut		m_Audio;
 	CInput			*m_pInput;
 	CUI			*m_pUI;

@@ -28,7 +28,7 @@ void CKernel::ShowUIFrame (boolean bWait, const char *pTopMessage)
 	if (pTopMessage && pTopMessage[0])
 	{
 		// in the black band above the picture, like the in-game messages
-		const CVideoOut::TTextSpan Span = {pTopMessage, UI_ERR};
+		const CScreen::TTextSpan Span = {pTopMessage, UI_ERR};
 		m_Video.DrawBandText (TRUE, &Span, 1);
 	}
 	else

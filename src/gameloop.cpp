@@ -622,7 +622,7 @@ void CKernel::PlayDrawBands (void)
 	TPlay &P = m_Play;
 	if (m_bStatusOn && !P.bMenu && P.bStatusReady)
 	{
-		const CVideoOut::TTextSpan Spans[] =
+		const CScreen::TTextSpan Spans[] =
 		{
 			{P.StFps, P.nFpsColor}, {"   LOAD ", UI_GREY}, {P.StLoad, P.nLoadColor},
 			{"   ", UI_GREY}, {P.StTemp, P.nTempColor},
@@ -639,7 +639,7 @@ void CKernel::PlayDrawBands (void)
 	}
 	if (P.nToast && !P.bMenu)
 	{
-		const CVideoOut::TTextSpan Span = {P.Toast, UI_WHITE};
+		const CScreen::TTextSpan Span = {P.Toast, UI_WHITE};
 		m_Video.DrawBandText (TRUE, &Span, 1);
 		P.nToast--;
 		P.nClearToast = 2;

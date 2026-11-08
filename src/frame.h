@@ -8,7 +8,7 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include "video.h"
+#include "screen.h"
 #include "nes_core.h"
 #include "tvfilter.h"
 #include <stdint.h>
@@ -55,7 +55,7 @@ extern int16_t g_AudioBuf[2 * (AUDIO_FRAME + 64)];	// the frame's sound, stereo
 extern volatile unsigned g_Pad[2];		// pads for the next frame (NES_* bits)
 extern volatile boolean g_bRaceFrame;		// this frame is raced
 
-void FrameSetup (CVideoOut *pVideo);		// once: the line hook, the TV filter's output
+void FrameSetup (CScreen *pVideo);		// once: the line hook, the TV filter's output
 void FrameRun (void);				// one frame: emulation, picture and sound
 
 #endif

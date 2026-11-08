@@ -28,7 +28,7 @@ volatile unsigned g_Pad[2] = {0, 0};
 volatile boolean g_bRaceFrame = FALSE;
 
 static unsigned s_nTvBurst = 0;		// colour burst phase of the frame (0-2)
-static CVideoOut *s_pVideo = 0;
+static CScreen *s_pVideo = 0;
 static u32 s_Line[PIC_MAX_W * 8], s_Dark[PIC_MAX_W * 8];	// core 0's scratch lines
 static u32 s_TvLine[3][PIC_MAX_W * 8], s_TvDark[3][PIC_MAX_W * 8];	// the TV filter's
 
@@ -101,7 +101,7 @@ static void NesLineHook (int nLine, const uint16_t *pPixels)
 	}
 }
 
-void FrameSetup (CVideoOut *pVideo)
+void FrameSetup (CScreen *pVideo)
 {
 	s_pVideo = pVideo;
 	nes_set_line_hook (NesLineHook);

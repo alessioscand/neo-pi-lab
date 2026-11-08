@@ -28,7 +28,7 @@ void CKernel::Benchmark (void)
 		char Text[64];
 		snprintf (Text, sizeof Text, "BENCHMARK  %s %u/%u S", pPhase,
 			  nFrame / 60, nFrames / 60);
-		const CVideoOut::TTextSpan Span = {Text, UI_WHITE};
+		const CScreen::TTextSpan Span = {Text, UI_WHITE};
 		m_Video.DrawBandText (TRUE, &Span, 1);
 		m_Video.Flip ();
 	};
