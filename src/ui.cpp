@@ -12,7 +12,9 @@
 #define ARGB(c)	(0xFF000000u | (c))
 
 CUI::CUI (void)
-:	m_bFont (FALSE)
+:	m_bFont (FALSE),
+	m_nClipX0 (0),
+	m_nClipX1 (UI_W)
 {
 	// list font: the console's own (sfix.sfix); until it is loaded, the menu font
 	memset (m_Font, 0, sizeof m_Font);
@@ -53,7 +55,7 @@ void CUI::SetFont (const u8 *pSFix, size_t nSize)
 
 void CUI::Pixel (int x, int y, u32 c)
 {
-	if (x >= 0 && x < UI_W && y >= 0 && y < UI_H)
+	if (x >= m_nClipX0 && x < m_nClipX1 && y >= 0 && y < UI_H)
 	{
 		m_Buf[(y + OY) * UI_SRC_PITCH + x + OX] = ARGB (c);
 	}
@@ -314,17 +316,69 @@ void CUI::Backdrop (boolean bOverGame)
 	}
 }
 
+// a name longer than nMax characters: cut after the last whole word, then "..."
+static void CutAtWord (char *pOut, const char *pName, unsigned nMax)
+{
+	size_t nLen = strlen (pName);
+	if (nLen <= nMax)
+	{
+		memcpy (pOut, pName, nLen + 1);
+		return;
+	}
+	unsigned nCut = nMax - 3;
+	while (nCut > 0 && pName[nCut] != ' ')
+	{
+		nCut--;
+	}
+	if (nCut == 0)
+	{
+		nCut = nMax - 3;		// one long word: cut inside it
+	}
+	while (nCut > 0 && strchr (" -,:", pName[nCut - 1]))
+	{
+		nCut--;
+	}
+	memcpy (pOut, pName, nCut);
+	strcpy (pOut + nCut, "...");
+}
+
+// how far a title nExtra pixels too long has scrolled after nTicks frames:
+// a pause at the start, forward 1 px every 2 frames, a pause, then back
+static int ScrollOffset (int nExtra, unsigned nTicks)
+{
+	const unsigned nPause = 90;
+	const unsigned nRun = (unsigned) nExtra * 2;
+	unsigned t = nTicks % (2 * (nPause + nRun));
+	if (t < nPause)
+	{
+		return 0;
+	}
+	t -= nPause;
+	if (t < nRun)
+	{
+		return (int) (t / 2);
+	}
+	t -= nRun;
+	if (t < nPause)
+	{
+		return nExtra;
+	}
+	return nExtra - (int) ((t - nPause) / 2);
+}
+
 void CUI::DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, const char *pMessage,
-		    boolean bOverGame)
+		    boolean bOverGame, unsigned nTicks)
 {
 	Backdrop (bOverGame);
 	Logo ();					// the big logo: only on the game list
-	// y 0..40 reserved for the logo (empty for now)
+	// the list: 4 titles above and below the selected one, 33 characters wide
+	const int C = 110;				// centre of the band
+	const int nListX = 20, nListW = 33 * 8;
 	Panel (12, 44, UI_W - 13, 190);
 
-	Fill (17, 104, UI_W - 34, 23, UI_BAND);
-	Fill (17, 104, UI_W - 34, 1, UI_FRAME2);
-	Fill (17, 126, UI_W - 34, 1, UI_FRAME2);
+	Fill (17, C - 11, UI_W - 34, 23, UI_BAND);
+	Fill (17, C - 11, UI_W - 34, 1, UI_FRAME2);
+	Fill (17, C + 11, UI_W - 34, 1, UI_FRAME2);
 
 	for (int k = -4; k <= 4; k++)
 	{
@@ -333,22 +387,37 @@ void CUI::DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, co
 		{
 			continue;
 		}
-		char Name[40];
-		strncpy (Name, pGames[i].Name, 34);
-		Name[34] = '\0';
+		const char *pName = pGames[i].Name;
 		if (k == 0)
 		{
-			CText (107, Name, UI_WHITE, 2, TRUE);
+			// the selected title: a long one scrolls inside the band
+			int nExtra = (int) strlen (pName) * 8 - nListW;
+			if (nExtra <= 0)
+			{
+				CText (C - 8, pName, UI_WHITE, 2, TRUE);
+			}
+			else
+			{
+				m_nClipX0 = nListX;
+				m_nClipX1 = nListX + nListW;
+				Text (nListX - ScrollOffset (nExtra, nTicks), C - 8, pName, UI_WHITE, 2, TRUE);
+				m_nClipX0 = 0;
+				m_nClipX1 = UI_W;
+			}
 		}
 		else
 		{
-			int y = 115 + k * 12 + (k > 0 ? 8 : -8) - 4;
+			char Name[40];
+			CutAtWord (Name, pName, 33);
+			int y = C + k * 11 + (k > 0 ? 8 : -8) - 4;
 			int nFade = 100 - (k < 0 ? -k : k) * 18;
 			if (nFade < 35) nFade = 35;
 			CText (y, Name, Dim (UI_DIM, (unsigned) nFade), 1, TRUE);
 		}
 	}
 
+	// bottom row: the region of the selected game on the left, counter on the right
+	Fill (17, 172, UI_W - 34, 1, UI_FRAME2);
 	char Count[16];
 	{
 		unsigned a = nSel + 1, b = nCount;
@@ -363,7 +432,11 @@ void CUI::DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, co
 		*p++ = '0' + b % 10;
 		*p = '\0';
 	}
-	Text (UI_W - 18 - (int) strlen (Count) * 8, 178, Count, 0x7A8290);
+	Text (UI_W - 18 - (int) strlen (Count) * 8, 177, Count, 0x7A8290);
+	if (nCount)
+	{
+		Text (18, 177, pGames[nSel].Info, UI_VALUE);
+	}
 
 	if (pMessage && pMessage[0])
 	{
@@ -539,8 +612,7 @@ void CUI::DrawLoading (const char *pName, unsigned nPercent)
 		{
 			pRest++;
 		}
-		strncpy (Line2, pRest, nMax);
-		Line2[nMax] = '\0';
+		CutAtWord (Line2, pRest, nMax);
 	}
 
 	int dy = Line2[0] ? 6 : 0;			// the box grows by 6 lines up and down

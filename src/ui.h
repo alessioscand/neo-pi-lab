@@ -50,8 +50,10 @@ struct TButtonHint
 
 struct TGameEntry
 {
-	char	Name[34];	// from the file name
+	char	Name[64];	// from the file name
 	char	File[64];	// file name in the nespi folder
+	char	Info[12];	// "NTSC", "PAL", ...: under the list, read when first selected
+	boolean	bInfo;		// Info has been read
 };
 
 class CUI
@@ -64,9 +66,10 @@ public:
 
 	u32 *GetBuffer (void)	{ return m_Buf; }
 
-	// bOverGame: a game is loaded, show it paused behind the list (SnapshotGame)
+	// bOverGame: a game is loaded, show it paused behind the list (SnapshotGame);
+	// nTicks = frames since the selection changed (scrolls a long title)
 	void DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, const char *pMessage,
-		       boolean bOverGame);
+		       boolean bOverGame, unsigned nTicks);
 	// Menu over a darkened copy of the game frame (call SnapshotGame when it opens)
 	void SnapshotGame (const u32 *pGameBuf);
 	// Generic panel menu: bOverGame = draw over the snapshot, else over the pattern
@@ -105,6 +108,7 @@ private:
 	u32	m_Snapshot[UI_W * UI_H];
 	u8	m_Font[128][8];		// list font (sfix.sfix), 1 bit per pixel, bit 7 = left
 	boolean	m_bFont;
+	int	m_nClipX0, m_nClipX1;	// Pixel draws only from x0 to x1 - 1
 };
 
 #endif

@@ -56,6 +56,7 @@ unsigned CKernel::RunList (unsigned nSel)
 	u32 nPrev = ~0u;		// require a release before acting
 	unsigned nRepeat = 0;
 	unsigned nFrame = 0;
+	unsigned nTicks = 0;		// frames since the selection changed
 
 	while (1)
 	{
@@ -90,10 +91,12 @@ unsigned CKernel::RunList (unsigned nSel)
 		{
 			nRepeat = 0;
 		}
+		unsigned nOld = nSel;
 		if ((nMove & BTN_UP) && nSel > 0)			nSel--;
 		if ((nMove & BTN_DOWN) && nSel + 1 < m_nGames)		nSel++;
 		if (nNew & BTN_LEFT)	nSel = nSel >= 8 ? nSel - 8 : 0;
 		if (nNew & BTN_RIGHT)	nSel = nSel + 8 < m_nGames ? nSel + 8 : m_nGames - 1;
+		nTicks = nSel == nOld ? nTicks + 1 : 0;
 
 		if (nNew & (BTN_A | BTN_START))
 		{
@@ -107,7 +110,11 @@ unsigned CKernel::RunList (unsigned nSel)
 		nPrev = n;
 
 		const char *pMsg = m_pInput->GetPadCount () == 0 ? "CONNECT A USB GAMEPAD" : "";
-		m_pUI->DrawList (m_pGames, m_nGames, nSel, "", m_nLoaded >= 0);
+		if (m_nGames && !m_pGames[nSel].bInfo)
+		{
+			ReadRegion (nSel);
+		}
+		m_pUI->DrawList (m_pGames, m_nGames, nSel, "", m_nLoaded >= 0, nTicks);
 		ShowUIFrame (TRUE, pMsg);
 	}
 }

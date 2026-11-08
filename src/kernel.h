@@ -103,6 +103,7 @@ private:
 	// games.cpp
 	u8 *LoadFile (const char *pPath, size_t *pSize, int nHeap, const char *pShowName);
 	void ScanGames (void);
+	void ReadRegion (unsigned nIndex);
 	boolean LoadGame (unsigned nIndex);
 	void UnloadGame (void);
 	void GamePath (char *pOut, size_t nSize, const char *pExt) const;
