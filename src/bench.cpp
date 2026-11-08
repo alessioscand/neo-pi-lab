@@ -71,9 +71,9 @@ void CKernel::Benchmark (void)
 
 		// hash of every measured frame (outside the timings): the same game and
 		// build options must give the same value
-		for (unsigned i = 0; i < NES_W * NES_H; i++)
+		for (unsigned p = 0; p < NES_W * NES_H; p++)
 		{
-			nAllHash = (nAllHash ^ g_VideoBuf[i]) * 16777619U;
+			nAllHash = (nAllHash ^ g_VideoBuf[p]) * 16777619U;
 		}
 		if (i % 60 == 0)
 		{

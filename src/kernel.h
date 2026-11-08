@@ -136,8 +136,20 @@ private:
 	void RunCredits (void);
 
 	// gameloop.cpp
+	struct TPlayInput
+	{
+		boolean bOpenMenu, bOpenCredits, bScreenshot;
+	};
 	void SetupCoreOnce (void);
 	void RunGame (void);
+	void PlayStart (void);
+	void PlayWaitRelease (void);
+	void PlayReadPads (const u32 Pad[2], TPlayInput *pIn);
+	void PlayOpenMenu (void);
+	unsigned PlayFrame (boolean bRace, boolean bScreenshot, unsigned *pT0, boolean *pOddFrame);
+	boolean PlayMenu (const u32 Pad[2]);
+	void PlayDrawBands (void);
+	void PlayStatusLine (unsigned nNow, unsigned *pNextDeadline);
 	const char *SaveScreenshot (void);
 
 	// bench.cpp
@@ -199,6 +211,36 @@ private:
 	boolean			 m_bHVS;		// FALSE: scaler=cpu in nespi.cfg
 	boolean			 m_bFilterAllowed;	// Pi 4 only
 	boolean			 m_bForceFilters;	// filters=on in nespi.cfg
+
+	// RunGame
+	struct TPlay
+	{
+		boolean	 bMenu;			// in-game menu open
+		unsigned nMenuSel;
+		u32	 nMenuPrev;
+		boolean	 bSaved;		// a save state exists (one per game)
+		char	 MenuMsg[40];
+		u32	 nMenuMsgColor;
+
+		// per player
+		u32	 nPrev[2];		// ~0: wait until released
+		boolean	 bSelectCombo[2];	// Select used with another button
+		unsigned nSelectPulse[2];	// a short Select press = Select for 8 frames
+		unsigned nSelectHeld[2];	// frames Select has been held alone
+		boolean	 bLazy[2];		// lazy finger (turbo on A and B), Select+B
+		unsigned nLazyCount[2][2];	// frames each of A and B has been held
+
+		// message in the top band (screenshot), in frames
+		char	 Toast[64];
+		unsigned nToast, nClearToast;
+
+		// status line (Select+Down), refreshed once per second
+		char	 StFps[16], StLoad[8], StTemp[8], StRes[8], StScale[16], StDelay[8];
+		u32	 nFpsColor, nLoadColor, nTempColor;
+		boolean	 bStatusReady;
+		unsigned nFrames, nSeconds, nTemp, nWinStart, nWorkMax;
+	};
+	TPlay			 m_Play;
 
 	static CKernel		*s_pThis;
 };

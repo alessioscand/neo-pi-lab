@@ -12,11 +12,11 @@ u32 g_VideoBuf[NES_W * NES_H] __attribute__ ((aligned (64)));
 u16 g_IdxBuf[NES_W * NES_H];
 u32 g_NtscBuf[NTSC_OUT_W * NES_H] __attribute__ ((aligned (64)));
 
-TVideoSource g_NesSource = {NES_W, NES_H - 2 * OVERSCAN_LINES, NES_W, 0, OVERSCAN_LINES};
+TVideoSource g_NesSource = {NES_W, NES_H - 2 * OVERSCAN_LINES, NES_W, 0, OVERSCAN_LINES, 0};
 // the TV filter's 602-pixel lines are shown half as wide per pixel (bHalfX),
 // which gives a 4:3 picture at the same height
 TVideoSource g_NtscSource = {NTSC_OUT_W, NES_H - 2 * OVERSCAN_LINES, NTSC_OUT_W, 0, OVERSCAN_LINES, 1};
-const TVideoSource g_UISource = {UI_W, UI_H, UI_SRC_PITCH, UI_SRC_X, UI_SRC_Y};
+const TVideoSource g_UISource = {UI_W, UI_H, UI_SRC_PITCH, UI_SRC_X, UI_SRC_Y, 0};
 
 const TVideoSource &FrameSource (void)	{ return g_Pic.nTvMode != NTSC_OFF ? g_NtscSource : g_NesSource; }
 const u32 *FrameBuffer (void)		{ return g_Pic.nTvMode != NTSC_OFF ? g_NtscBuf : g_VideoBuf; }

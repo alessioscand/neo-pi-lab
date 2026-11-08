@@ -19,8 +19,11 @@
 #include <math.h>
 #include <limits.h>
 #define long int
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"	/* blargg's library, as it is */
 #include "nst/nes_ntsc/nes_ntsc.h"
 #include "nst/nes_ntsc/nes_ntsc.inl"
+#pragma GCC diagnostic pop
 #undef long
 
 #include "ntsc_blargg.h"
