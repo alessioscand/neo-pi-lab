@@ -3,13 +3,13 @@ nes-pi 1.0.0 - Bare-metal NES emulator for Raspberry Pi 3 and 4
 
 WHAT'S NEW IN 1.0.0
 
-  - The first stable release: the code has been reorganised from top to
-    bottom and now shares its foundations with neo-pi and m92-pi.
-  - Game list: the selected game's region (NTSC, PAL, DENDY) bottom
-    left. A long title scrolls; the others are cut at a word.
-  - TV FILTER RF: a little less blurred.
-  - To update a card, copy the new files over the old ones: games, saves,
-    settings and pads.cfg in nespi are kept and work as before.
+  - Beam racing: the picture reaches the TV line by line, 2-4 ms after
+    the pads are read.
+  - Pixel perfect: integer scaling, and five TV filters from sharp
+    square pixels to an old aerial cable, with no added lag.
+  - Game list with each game's region (NTSC, PAL, DENDY); long titles
+    scroll.
+  - Save states, cartridge saves, screenshots, lazy finger, two players.
 
 SET-UP
 

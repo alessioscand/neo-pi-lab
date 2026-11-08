@@ -39,8 +39,8 @@ void ntsc_blargg_setup (int nMode)
 		Setup.artifacts  =  1.0;	/* colour artifacts from colour changes */
 		Setup.fringing   =  1.0;	/* colour fringes from brightness changes */
 		Setup.bleed      =  1.0;	/* colour bleeding */
-		Setup.sharpness  = -1.0;	/* blurred edges */
-		Setup.resolution = -1.0;	/* least detail */
+		Setup.sharpness  = -0.5;	/* soft edges */
+		Setup.resolution = -0.5;	/* less detail */
 	}
 	Setup.merge_fields = 0;		/* the real thing: artifacts crawl and shimmer */
 	Setup.palette = 0;		/* colours from the NES signal model */
