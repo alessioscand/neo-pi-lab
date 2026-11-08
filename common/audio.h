@@ -1,5 +1,5 @@
 /*
- * nes-pi - HDMI audio output with a small queue and drift correction
+ * HDMI audio output with a small queue and drift correction
  */
 #ifndef AUDIO_H
 #define AUDIO_H

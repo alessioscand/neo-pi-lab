@@ -1,12 +1,12 @@
 /*
- * nes-pi - beam racing (Pi 4)
+ * beam racing (Pi 3 and 4)
  *
  * One emulated frame per HDMI frame, raced against the HVS (see raster.h):
  *
  *   - frame start (core 0, before the pads are read): wait until
  *       deadline(row 0) - lead - vblank budget
- *     then read the pads and run geo_exec(): the frame starts with the
- *     vertical blank (patches/geolith-phase.py), where games read the pads;
+ *     then read the pads and run the frame: it starts with the vertical
+ *     blank, where games read the pads;
  *   - each visible row (core 0, line hook in the video chip): wait until
  *       deadline(row) - lead
  *     so emulation never runs more than `lead` ahead of the HVS, and a row is
@@ -29,8 +29,9 @@
 #define RACE_H
 
 #include "raster.h"
+#include "project.h"
 
-#define RACE_MAX_ROWS	256
+#define RACE_ROWS	PROJECT_HEIGHT		// the most rows a picture can have
 
 class CBeamRacer
 {
@@ -38,8 +39,9 @@ public:
 	CBeamRacer (CRaster *pRaster);
 
 	// framebuffer line of the first game row, CPU scale m, HVS factor k, rows
-	void SetGeometry (unsigned nGameY, unsigned nM, unsigned nK, unsigned nRows);
+	void SetGeometry (unsigned nGameY, unsigned nM, unsigned nK, unsigned nRows = RACE_ROWS);
 	void Restart (void);			// new game, after a pause: large margins again
+	void Rearm (void);			// a game started from the list: try again after Failed()
 
 	// core 0: frame start; returns the time to wait for (ticks)
 	u64 PlanFrame (u64 nNow);
@@ -49,19 +51,13 @@ public:
 	{
 		if (nRow == 0) m_nVBTime = nNow - m_nGoTime;
 	}
-	// row nRow is in the framebuffer (from the TV filter's cores 1-3, possibly
-	// several at once and out of order: atomic updates)
+	// core 1: row nRow is in the framebuffer
 	void RowDone (unsigned nRow, u64 nNow)
 	{
 		s64 nSlack = (s64) (m_Deadline[nRow] - nNow);
-		s64 nMin = __atomic_load_n (&m_nMinSlack, __ATOMIC_RELAXED);
-		while (   nSlack < nMin
-		       && !__atomic_compare_exchange_n (&m_nMinSlack, &nMin, nSlack, TRUE,
-							__ATOMIC_RELAXED, __ATOMIC_RELAXED))
-		{
-		}
-		if (nSlack < 0) __atomic_fetch_add (&m_nLateRowsFrame, 1, __ATOMIC_RELAXED);
-		__atomic_fetch_add (&m_nRowsDone, 1, __ATOMIC_RELAXED);
+		if (nSlack < m_nMinSlack) m_nMinSlack = nSlack;
+		if (nSlack < 0) m_nLateRowsFrame++;
+		m_nRowsDone++;
 	}
 	void FrameEnd (void);			// core 0, after core 1 has finished
 
@@ -85,9 +81,9 @@ public:
 private:
 	CRaster *m_pRaster;
 	unsigned m_nRows;
-	unsigned m_Need[RACE_MAX_ROWS];		// output line that sets each row's deadline
+	unsigned m_Need[RACE_ROWS];		// output line that sets each row's deadline
 
-	volatile u64 m_Deadline[RACE_MAX_ROWS];
+	volatile u64 m_Deadline[RACE_ROWS];
 	volatile s64 m_nMinSlack;
 	volatile unsigned m_nLateRowsFrame, m_nRowsDone;
 

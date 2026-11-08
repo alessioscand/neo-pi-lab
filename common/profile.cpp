@@ -1,9 +1,10 @@
 /*
- * nes-pi - sampling profiler for the benchmark (see profile.h)
+ * sampling profiler for the benchmark (see profile.h)
  */
 #include "profile.h"
 #include <circle/memorymap.h>
 #include <circle/util.h>
+#include "project.h"
 
 extern "C" {
 extern char _etext[];
@@ -124,7 +125,7 @@ size_t CProfiler::Format (char *pOut, size_t nSize) const
 {
 	size_t nPos = 0;
 	nPos += snprintf (pOut + nPos, nSize - nPos,
-			  "# nes-pi profile: bucket = 16 bytes, interval %u us\r\n"
+			  "# " PROJECT_NAME " profile: bucket = 16 bytes, interval %u us\r\n"
 			  "# samples %u (slow frames %u), outside kernel text %u, lost %u\r\n"
 			  "# address all slow\r\n",
 			  m_nInterval, m_nTotal, m_nSlowTotal, m_nOutside, m_nLost);

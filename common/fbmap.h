@@ -4,13 +4,14 @@
 // store goes out to the bus on its own. Linux maps framebuffers as
 // Normal Non-cacheable instead, so the core merges the stores into bursts.
 // This changes only the pages of our framebuffer, at run time, without
-// touching Circle (shared with neo-pi): MAIR_EL1 index 3 (unused by Circle)
+// touching Circle (shared with NES-Pi): MAIR_EL1 index 3 (unused by Circle)
 // becomes Normal Non-cacheable and the framebuffer pages point to it.
 
 #ifndef _fbmap_h
 #define _fbmap_h
 
 #include <circle/types.h>
+
 
 // MAIR_EL1 index 3 = Normal Non-cacheable; every core that draws calls it once
 void FbSetMair (void);

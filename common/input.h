@@ -1,5 +1,5 @@
 /*
- * nes-pi - USB gamepads and keyboard -> two NES pads
+ * USB gamepads and keyboard -> up to four M92 control panels
  */
 #ifndef INPUT_H
 #define INPUT_H
@@ -9,8 +9,9 @@
 #include <circle/usb/usbkeyboard.h>
 #include <circle/devicenameservice.h>
 #include <circle/types.h>
+#include "project.h"
 
-// nes-pi logical buttons
+// Logical buttons
 #define BTN_UP		(1u << 0)
 #define BTN_DOWN	(1u << 1)
 #define BTN_LEFT	(1u << 2)
@@ -21,14 +22,22 @@
 #define BTN_D		(1u << 7)
 #define BTN_START	(1u << 8)
 #define BTN_SELECT	(1u << 9)
-#define BTN_MENU	(1u << 10)	// keyboard Esc (= Select+Start)
+#define BTN_E		(1u << 10)	// buttons 5 and 6 (PROJECT_BUTTONS 6)
+#define BTN_F		(1u << 11)
+#define BTN_MENU	(1u << 12)	// keyboard Esc (= Select+Start)
 
 #define MAX_PADS	4
 
 // Controls that can be assigned (bit n of a mapping = logical bit n above)
+#if PROJECT_BUTTONS == 6
+#define MAP_COUNT	12	// UP DOWN LEFT RIGHT A B C D START SELECT E F
+#define MAP_E		10	// E and F can be skipped (pads with 4 buttons)
+#define MAP_F		11
+#else
 #define MAP_COUNT	10	// UP DOWN LEFT RIGHT A B C D START SELECT
-#define MAP_FIRST_BUTTON 4	// only A B C D START SELECT are set up (directions are automatic)
-#define MAX_MAPS	32	// pad models remembered in nespi/pads.cfg
+#endif
+#define MAP_FIRST_BUTTON 4	// only the buttons are set up (directions are automatic)
+#define MAX_MAPS	32	// pad models remembered in pads.cfg
 
 enum TBindType { BindNone, BindButton, BindHat, BindAxis };
 
@@ -70,7 +79,7 @@ public:
 	void RestartDiagnostics (void);		// log the first changes again (new game)
 
 	// ---- control mapping ----
-	// nespi/pads.cfg: one line per pad model (vendor:product)
+	// pads.cfg: one line per pad model (vendor:product)
 	void LoadMaps (const char *pText);
 	void FormatMaps (char *pOut, size_t nSize) const;
 
@@ -94,6 +103,7 @@ public:
 	static void DescribeBind (const TBind &rBind, char *pOut, size_t nSize);
 
 	u32 GetKeyboard (void) const	{ return s_KeyState; }
+
 
 private:
 	static void GamePadStatusHandler (unsigned nIndex, const TGamePadState *pState);

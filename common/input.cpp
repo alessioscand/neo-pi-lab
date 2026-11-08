@@ -1,8 +1,8 @@
 /*
- * nes-pi - USB gamepads and keyboard
+ * USB gamepads and keyboard
  */
 #include "input.h"
-#include "nespi.h"
+#include "project.h"
 #include <circle/usb/usbhid.h>
 #include <circle/usb/usbdevice.h>
 #include <circle/util.h>
@@ -25,7 +25,11 @@ volatile boolean CInput::s_bChange = FALSE;
 volatile unsigned CInput::s_nChangeTicks = 0;
 
 static const char *MapKeys[MAP_COUNT] =
-	{"UP", "DOWN", "LEFT", "RIGHT", "A", "B", "C", "D", "START", "SELECT"};
+	{"UP", "DOWN", "LEFT", "RIGHT", "A", "B", "C", "D", "START", "SELECT",
+#if PROJECT_BUTTONS == 6
+	 "E", "F"
+#endif
+	};
 
 #define RAW_LOG_PER_PAD	40	// first raw changes logged for each pad
 
@@ -50,7 +54,7 @@ CInput::CInput (CUSBHCIDevice *pUSB, CDeviceNameService *pNames)
 	s_KeyState = 0;
 }
 
-#ifdef NESPI_FAKEPAD
+#ifdef PROJECT_FAKEPAD
 // QEMU has no USB gamepad: a fake one in slot 0, driven by the keyboard
 // (arrows = hat, Q W E R T Y U I O P = buttons 1-10), id 1234:5678
 #define FAKE_PAD	((CUSBGamePadDevice *) 1)
@@ -59,7 +63,7 @@ static TGamePadState s_FakeState;
 
 void CInput::UpdateDevices (void)
 {
-#ifdef NESPI_FAKEPAD
+#ifdef PROJECT_FAKEPAD
 	if (m_pPad[0] == 0)
 	{
 		memset (&s_FakeState, 0, sizeof s_FakeState);
@@ -78,7 +82,7 @@ void CInput::UpdateDevices (void)
 		m_Rest[0].hats[0] = -1;
 		s_Last[0] = s_FakeState;
 		UpdateSlotMap (0);
-		nespi_log ("Fake pad 1 (QEMU): 1234:5678, %s",
+		project_log ("Fake pad 1 (QEMU): 1234:5678, %s",
 			   s_SlotMap[0] >= 0 ? "controls set up" : "controls to set up");
 	}
 #endif
@@ -116,7 +120,7 @@ void CInput::UpdateDevices (void)
 		s_Last[i] = m_Rest[i];
 		s_bGotReport[i] = FALSE;
 		UpdateSlotMap (i);
-		nespi_log ("Pad %u connected: %04x:%04x, %s, %d buttons, %d hats, %d axes, %s",
+		project_log ("Pad %u connected: %04x:%04x, %s, %d buttons, %d hats, %d axes, %s",
 			   i + 1, GetVendor (i), GetProduct (i),
 			   (s_PadProps[i] & GamePadPropertyIsKnown) ? "known layout" : "generic HID",
 			   pState ? pState->nbuttons : -1, pState ? pState->nhats : -1,
@@ -124,7 +128,7 @@ void CInput::UpdateDevices (void)
 			   s_SlotMap[i] >= 0 ? "controls set up" : "controls to set up");
 		for (int a = 0; pState && a < pState->naxes && a < 8; a++)
 		{
-			nespi_log ("  axis %d: %d..%d, at rest %d", a, pState->axes[a].minimum,
+			project_log ("  axis %d: %d..%d, at rest %d", a, pState->axes[a].minimum,
 				   pState->axes[a].maximum, pState->axes[a].value);
 		}
 
@@ -137,7 +141,7 @@ void CInput::UpdateDevices (void)
 		m_pKeyboard = (CUSBKeyboardDevice *) m_pNames->GetDevice ("ukbd1", FALSE);
 		if (m_pKeyboard != 0)
 		{
-			nespi_log ("USB keyboard connected");
+			project_log ("USB keyboard connected");
 			m_pKeyboard->RegisterRemovedHandler (KeyboardRemovedHandler, this);
 			m_pKeyboard->RegisterKeyStatusHandlerRaw (KeyboardRawHandler);
 		}
@@ -227,16 +231,24 @@ u32 CInput::MapPad (unsigned nIndex, const TGamePadState *pState)
 		if (b & GamePadButtonB)		n |= BTN_B;
 		if (b & GamePadButtonX)		n |= BTN_C;
 		if (b & GamePadButtonY)		n |= BTN_D;
+#if PROJECT_BUTTONS == 6
+		if (b & GamePadButtonLB)	n |= BTN_E;
+		if (b & GamePadButtonRB)	n |= BTN_F;
+#endif
 		if (b & (GamePadButtonStart | GamePadButtonPlus))	n |= BTN_START;
 		if (b & (GamePadButtonSelect | GamePadButtonMinus))	n |= BTN_SELECT;
 	}
 	else
 	{
-		// Generic HID pad / arcade encoder: buttons 1-4 = A-D, 9 = Select, 10 = Start
+		// Generic HID pad / arcade encoder: buttons 1-4 (1-6) = A-D (A-F), 9 = Select, 10 = Start
 		if (b & (1u << 0))	n |= BTN_A;
 		if (b & (1u << 1))	n |= BTN_B;
 		if (b & (1u << 2))	n |= BTN_C;
 		if (b & (1u << 3))	n |= BTN_D;
+#if PROJECT_BUTTONS == 6
+		if (b & (1u << 4))	n |= BTN_E;
+		if (b & (1u << 5))	n |= BTN_F;
+#endif
 		if (b & (1u << 8))	n |= BTN_SELECT;
 		if (b & (1u << 9))	n |= BTN_START;
 
@@ -332,7 +344,7 @@ void CInput::FlushDiagnostics (void)
 	while (m_nRawOut != s_nRawIn)
 	{
 		const TRaw &r = s_Raw[m_nRawOut % RawSize];
-		nespi_log ("  pad %u: buttons 0x%x hat %d axes %d %d %d %d -> nes-pi 0x%x",
+		project_log ("  pad %u: buttons 0x%x hat %d axes %d %d %d %d -> " PROJECT_NAME " 0x%x",
 			   r.nPad + 1, r.nButtons, r.nHat, r.nAx0, r.nAx1, r.nAx2, r.nAx3, r.nMapped);
 		m_nRawOut++;
 	}
@@ -353,16 +365,16 @@ void CInput::GamePadRemovedHandler (CDevice *pDevice, void *pContext)
 	}
 }
 
-void CInput::KeyboardRemovedHandler (CDevice *pDevice, void *pContext)
+void CInput::KeyboardRemovedHandler (CDevice *, void *pContext)
 {
 	CInput *pThis = (CInput *) pContext;
 	pThis->m_pKeyboard = 0;
 	s_KeyState = 0;
 }
 
-void CInput::KeyboardRawHandler (unsigned char ucModifiers, const unsigned char RawKeys[6])
+void CInput::KeyboardRawHandler (unsigned char, const unsigned char RawKeys[6])
 {
-	// Hidden fallback for testing: arrows, Z X C V = A B C D,
+	// Hidden fallback for testing: arrows, Z X C V (B N) = A B C D (E F),
 	// Enter = Start, 5 / Space = Select (coin), Esc = menu
 	u32 n = 0;
 	for (unsigned i = 0; i < 6; i++)
@@ -377,6 +389,10 @@ void CInput::KeyboardRawHandler (unsigned char ucModifiers, const unsigned char 
 		case 0x1B: n |= BTN_B;		break;	// X
 		case 0x06: n |= BTN_C;		break;	// C
 		case 0x19: n |= BTN_D;		break;	// V
+#if PROJECT_BUTTONS == 6
+		case 0x05: n |= BTN_E;		break;	// B
+		case 0x11: n |= BTN_F;		break;	// N
+#endif
 		case 0x28: n |= BTN_START;	break;	// Enter
 		case 0x22: case 0x2C: n |= BTN_SELECT; break;	// 5, Space
 		case 0x29: n |= BTN_MENU;	break;	// Esc
@@ -385,7 +401,7 @@ void CInput::KeyboardRawHandler (unsigned char ucModifiers, const unsigned char 
 	}
 	s_KeyState = n;
 
-#ifdef NESPI_FAKEPAD
+#ifdef PROJECT_FAKEPAD
 	static const unsigned char Btn[10] = {0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13};	// Q..P
 	TGamePadState S = s_FakeState;
 	S.buttons = 0;
@@ -414,7 +430,7 @@ u16 CInput::GetVendor (unsigned nSlot) const
 	{
 		return 0;
 	}
-#ifdef NESPI_FAKEPAD
+#ifdef PROJECT_FAKEPAD
 	if (m_pPad[nSlot] == FAKE_PAD)
 	{
 		return 0x1234;
@@ -430,7 +446,7 @@ u16 CInput::GetProduct (unsigned nSlot) const
 	{
 		return 0;
 	}
-#ifdef NESPI_FAKEPAD
+#ifdef PROJECT_FAKEPAD
 	if (m_pPad[nSlot] == FAKE_PAD)
 	{
 		return 0x5678;
@@ -682,13 +698,13 @@ void CInput::LoadMaps (const char *pText)
 	{
 		UpdateSlotMap (i);
 	}
-	nespi_log ("Controls: %u pad models set up", s_nMaps);
+	project_log ("Controls: %u pad models set up", s_nMaps);
 }
 
 void CInput::FormatMaps (char *pOut, size_t nSize) const
 {
 	size_t n = (size_t) snprintf (pOut, nSize,
-		"# nes-pi: controls per pad model (vendor:product)\r\n"
+		"# " PROJECT_NAME ": controls per pad model (vendor:product)\r\n"
 		"# b = button number (directions are automatic)\r\n");
 	for (unsigned m = 0; m < s_nMaps && n < nSize; m++)
 	{

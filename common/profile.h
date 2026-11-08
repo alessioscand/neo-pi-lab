@@ -1,11 +1,11 @@
 /*
- * nes-pi - sampling profiler for the benchmark
+ * sampling profiler for the benchmark
  *
  * A hardware timer interrupt (ARM_IRQ_TIMER1) fires every few hundred
  * microseconds and records the interrupted program counter. Samples are
  * collected per frame and added to two tables of 16-byte code buckets: one
  * for all frames, one for slow frames only. The tables are written to
- * nespi/PROFILE.TXT as "address all slow" lines; addresses are resolved to
+ * PROFILE.TXT as "address all slow" lines; addresses are resolved to
  * function names offline with the matching kernel .elf file.
  */
 #ifndef PROFILE_H

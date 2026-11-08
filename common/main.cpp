@@ -1,5 +1,5 @@
 /*
- * nes-pi - entry point
+ * entry point
  */
 #include "kernel.h"
 #include <circle/startup.h>

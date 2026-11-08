@@ -18,7 +18,7 @@ LIBS	= libnst.a \
 	  $(CIRCLEHOME)/lib/fs/libfs.a \
 	  $(CIRCLEHOME)/lib/libcircle.a
 
-EXTRAINCLUDE = -I @SRC@ -I @MINIZ@
+EXTRAINCLUDE = -I @SRC@ -I @COMMON@ -I @MINIZ@
 
 C_STANDARD = -std=gnu11
 OPTIMIZE = -O2
@@ -35,7 +35,7 @@ NSTOBJ	:= $(NSTSRC:.cpp=.nst.o)
 NSTFLAGS = $(ARCH) -O3 -std=gnu++11 -fexceptions -fno-math-errno \
 	   -ffunction-sections -fdata-sections -w \
 	   -DNDEBUG -DNST_NO_ZLIB -DNST_NO_HQ2X -DNST_NO_2XSAI -DNST_NO_SCALEX -DNST_NO_XBR \
-	   -I $(NSTDIR)/core -I $(NSTDIR)/core/api -I $(NSTDIR) -I @SRC@
+	   -I $(NSTDIR)/core -I $(NSTDIR)/core/api -I $(NSTDIR) -I @SRC@ -I @COMMON@
 
 %.nst.o: %.cpp
 	@echo "  CPP   $@"
