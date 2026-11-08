@@ -28,6 +28,7 @@
 #define UI_TITLE	0xF8B800u	// gold (= logo NES)
 #define UI_VALUE	0xF8B800u
 #define UI_DIM		0x96A0AFu
+#define UI_INFO		0x7A8290u	// bottom row of the game list
 #define UI_WHITE	0xF8F8F8u
 #define UI_CURSOR	0xF8B800u	// gold: red would vanish on the band
 #define UI_DANGER	0xE40058u	// POWER OFF, logo PI (NES palette $15)

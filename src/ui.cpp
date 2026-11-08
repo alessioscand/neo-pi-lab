@@ -438,10 +438,10 @@ void CUI::DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, co
 		*p++ = '0' + b % 10;
 		*p = '\0';
 	}
-	Text (UI_W - 18 - (int) strlen (Count) * 8, 177, Count, 0x7A8290);
+	Text (UI_W - 18 - (int) strlen (Count) * 8, 177, Count, UI_INFO);
 	if (nCount)
 	{
-		Text (18, 177, pGames[nSel].Info, UI_VALUE);
+		Text (18, 177, pGames[nSel].Info, UI_INFO);
 	}
 
 	if (pMessage && pMessage[0])
