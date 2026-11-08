@@ -54,8 +54,7 @@ struct TGameEntry
 {
 	char	Name[64];	// from the file name
 	char	File[64];	// file name in the nespi folder
-	char	Info[12];	// "NTSC", "PAL", ...: under the list, read when first selected
-	boolean	bInfo;		// Info has been read
+	char	Info[12];	// "NTSC", "PAL", ...: from the file name, under the list
 };
 
 class CUI

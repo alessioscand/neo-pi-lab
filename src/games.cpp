@@ -107,6 +107,72 @@ u8 *CKernel::LoadFile (const char *pPath, size_t *pSize, int nHeap, const char *
 	return pBuffer;
 }
 
+// the TV system a file name's region tags say, in the No-Intro naming:
+// (USA) (Europe) (Japan, USA) (World) ..., or GoodNES: (U) (E) (J) (JUE) ...
+// "NTSC", "PAL", "NTSC/PAL", "DENDY", or "" without a known tag
+static const char *TagRegion (const char *pFile)
+{
+	enum { NTSC = 1, PAL = 2, DENDY = 4 };
+	static const struct { const char *pTag; unsigned nBits; } Tags[] =
+	{
+		{"USA", NTSC}, {"Japan", NTSC}, {"Korea", NTSC}, {"Canada", NTSC},
+		{"Brazil", NTSC}, {"Taiwan", NTSC},
+		{"Europe", PAL}, {"Australia", PAL}, {"Germany", PAL}, {"France", PAL},
+		{"Spain", PAL}, {"Italy", PAL}, {"UK", PAL}, {"Netherlands", PAL},
+		{"Sweden", PAL}, {"Denmark", PAL}, {"Finland", PAL}, {"Norway", PAL},
+		{"Scandinavia", PAL}, {"Greece", PAL}, {"Poland", PAL}, {"Portugal", PAL},
+		{"Russia", DENDY},
+		{"World", NTSC | PAL},
+		{"PAL", PAL}, {"NTSC", NTSC},
+		{"G", PAL}, {"F", PAL}, {"S", PAL}, {"I", PAL}, {"Sw", PAL}, {"B", NTSC}
+	};
+	unsigned nBits = 0;
+	for (const char *p = strchr (pFile, '('); p; p = strchr (p, '('))
+	{
+		p++;
+		while (*p && *p != ')')			// "(Japan, USA)": one tag after the other
+		{
+			while (*p == ' ')
+			{
+				p++;
+			}
+			size_t n = 0;
+			while (p[n] && p[n] != ',' && p[n] != ')')
+			{
+				n++;
+			}
+			boolean bFound = FALSE;
+			for (unsigned i = 0; i < sizeof Tags / sizeof Tags[0]; i++)
+			{
+				if (strlen (Tags[i].pTag) == n && strncmp (Tags[i].pTag, p, n) == 0)
+				{
+					nBits |= Tags[i].nBits;
+					bFound = TRUE;
+				}
+			}
+			// GoodNES letters, also together: (U) (J) (K) (E) (A) (UE) (JUE) ...
+			unsigned nLetters = 0;
+			for (size_t i = 0; i < n; i++)
+			{
+				nLetters |= strchr ("UJK", p[i]) ? NTSC : strchr ("EA", p[i]) ? PAL : 8;
+			}
+			if (!bFound && n > 0 && n <= 3 && !(nLetters & 8))
+			{
+				nBits |= nLetters;
+			}
+			p += n;
+			if (*p == ',')
+			{
+				p++;
+			}
+		}
+	}
+	if ((nBits & (NTSC | PAL)) == (NTSC | PAL)) return "NTSC/PAL";
+	if (nBits & NTSC) return "NTSC";
+	if (nBits & PAL) return "PAL";
+	return nBits & DENDY ? "DENDY" : "";
+}
+
 void CKernel::ScanGames (void)
 {
 	m_pGames = new TGameEntry[MaxGames];
@@ -132,8 +198,7 @@ void CKernel::ScanGames (void)
 		// and nothing after " (" (region / revision tags)
 		TGameEntry &G = m_pGames[m_nGames];
 		strcpy (G.File, Info.fname);
-		G.Info[0] = '\0';
-		G.bInfo = FALSE;
+		strcpy (G.Info, TagRegion (Info.fname));
 		unsigned n = 0;
 		size_t nLen = strlen (Info.fname) - 4;
 		for (size_t i = 0; i < nLen && n < sizeof G.Name - 1; i++)
@@ -180,103 +245,6 @@ void CKernel::ScanGames (void)
 		}
 		m_pGames[j+1] = t;
 	}
-}
-
-// the TV system a file name's tags say: (USA) (Europe) (Japan, USA) (U) (E) (JUE) ...
-// bit 0 = NTSC, bit 1 = PAL
-static unsigned TagRegion (const char *pFile)
-{
-	static const struct { const char *pTag; unsigned nBits; } Tags[] =
-	{
-		{"USA", 1}, {"Japan", 1}, {"Korea", 1}, {"Canada", 1}, {"Brazil", 1}, {"Asia", 1},
-		{"Europe", 2}, {"Germany", 2}, {"France", 2}, {"Spain", 2}, {"Italy", 2},
-		{"Sweden", 2}, {"Australia", 2}, {"UK", 2}, {"Netherlands", 2}, {"Scandinavia", 2},
-		{"PAL", 2}, {"G", 2}, {"F", 2}, {"S", 2}, {"I", 2}, {"Sw", 2},
-		{"World", 3}
-	};
-	unsigned nBits = 0;
-	for (const char *p = strchr (pFile, '('); p; p = strchr (p, '('))
-	{
-		p++;
-		while (*p && *p != ')')			// "(Japan, USA)": one tag after the other
-		{
-			while (*p == ' ')
-			{
-				p++;
-			}
-			size_t n = 0;
-			while (p[n] && p[n] != ',' && p[n] != ')')
-			{
-				n++;
-			}
-			boolean bFound = FALSE;
-			for (unsigned i = 0; i < sizeof Tags / sizeof Tags[0]; i++)
-			{
-				if (strlen (Tags[i].pTag) == n && strncmp (Tags[i].pTag, p, n) == 0)
-				{
-					nBits |= Tags[i].nBits;
-					bFound = TRUE;
-				}
-			}
-			// GoodNES letters: (U) (J) (E) (UE) (JU) ...
-			unsigned nLetters = 0;
-			for (size_t i = 0; i < n; i++)
-			{
-				nLetters |= p[i] == 'E' ? 2 : (p[i] == 'U' || p[i] == 'J' || p[i] == 'K') ? 1 : 4;
-			}
-			if (!bFound && n <= 3 && !(nLetters & 4))
-			{
-				nBits |= nLetters;
-			}
-			p += n;
-			if (*p == ',')
-			{
-				p++;
-			}
-		}
-	}
-	return nBits;
-}
-
-// NTSC / PAL / DENDY: from the NES 2.0 header, else the file name's tags,
-// else the iNES PAL bit (rarely set); nothing if none of them says
-void CKernel::ReadRegion (unsigned nIndex)
-{
-	TGameEntry &G = m_pGames[nIndex];
-	G.bInfo = TRUE;
-
-	u8 H[16];
-	UINT nRead = 0;
-	char Path[128];
-	FIL File;
-	snprintf (Path, sizeof Path, "%s/%s", NESPI_DIR, G.File);
-	if (f_open (&File, Path, FA_READ) == FR_OK)
-	{
-		f_read (&File, H, sizeof H, &nRead);
-		f_close (&File);
-	}
-	if (nRead < sizeof H || memcmp (H, "NES\x1A", 4) != 0)
-	{
-		return;
-	}
-
-	static const char *Names[4] = {"", "NTSC", "PAL", "NTSC/PAL"};
-	const char *pName;
-	unsigned nTags;
-	if ((H[7] & 0x0C) == 0x08)
-	{
-		static const char *Timing[4] = {"NTSC", "PAL", "NTSC/PAL", "DENDY"};
-		pName = Timing[H[12] & 3];
-	}
-	else if ((nTags = TagRegion (G.File)) != 0)
-	{
-		pName = Names[nTags];
-	}
-	else
-	{
-		pName = H[9] & 1 ? "PAL" : "";
-	}
-	strcpy (G.Info, pName);
 }
 
 void CKernel::GamePath (char *pOut, size_t nSize, const char *pExt) const

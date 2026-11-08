@@ -31,7 +31,7 @@ START-UP
   - Game list: Up/Down to choose, Left/Right to jump by 8, A or Start to
     play, Select for OPTIONS. Names come from the file names (anything
     from the first "(" on is left out). Bottom left: the region, from the
-    NES 2.0 header or the file name's tags, such as (USA) or (Europe).
+    file name's tags, such as (USA) or (Europe).
   - A game whose board (mapper) is not supported is not started: the list
     stays on screen and LOG.TXT says why.
   - Benchmark: an empty file named nespi/BENCH (no extension) runs one on

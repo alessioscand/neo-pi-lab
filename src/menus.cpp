@@ -110,10 +110,6 @@ unsigned CKernel::RunList (unsigned nSel)
 		nPrev = n;
 
 		const char *pMsg = m_pInput->GetPadCount () == 0 ? "CONNECT A USB GAMEPAD" : "";
-		if (m_nGames && !m_pGames[nSel].bInfo)
-		{
-			ReadRegion (nSel);
-		}
 		m_pUI->DrawList (m_pGames, m_nGames, nSel, "", m_nLoaded >= 0, nTicks);
 		ShowUIFrame (TRUE, pMsg);
 	}
