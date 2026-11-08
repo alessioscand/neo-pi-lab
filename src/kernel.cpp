@@ -4,8 +4,6 @@
 #include "kernel.h"
 #include "frame.h"
 #include <circle/machineinfo.h>
-#include <circle/memory.h>
-#include <circle/new.h>
 #include <circle/bcmwatchdog.h>
 
 CKernel *CKernel::s_pThis = 0;

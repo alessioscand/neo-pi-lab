@@ -10,7 +10,6 @@
 #include "stats.h"
 #include "smp.h"
 #include "fontdata.h"
-#include <circle/alloc.h>
 
 extern "C" {
 void *nespi_png_encode (const void *pRGB, int nWidth, int nHeight, size_t *pSize);
