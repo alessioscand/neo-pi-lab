@@ -1,5 +1,10 @@
 /*
- * nes-pi - kernel
+ * nes-pi - kernel: game list, play with USB pads and HDMI audio, in-game menu
+ * with save states, automatic diagnostics in LOG.TXT
+ *
+ * The class is implemented by area: kernel.cpp (start-up, power off),
+ * console.cpp, games.cpp, settings.cpp, menus.cpp, gameloop.cpp, bench.cpp,
+ * report.cpp, racing.cpp.
  */
 #ifndef KERNEL_H
 #define KERNEL_H
@@ -18,10 +23,42 @@
 #include <SDCard/emmc.h>
 #include <fatfs/ff.h>
 #include <circle/types.h>
+#include <circle/util.h>
+#include <stdint.h>
 #include "video.h"
 #include "input.h"
 #include "audio.h"
 #include "ui.h"
+#include "project.h"
+
+extern "C" {
+int snprintf (char *pBuffer, size_t nSize, const char *pFormat, ...);
+}
+
+#define NESPI_DIR	"SD:/nespi"
+#define LOG_PATH	NESPI_DIR "/LOG.TXT"
+#define BENCH_FLAG	NESPI_DIR "/BENCH"
+#define BENCH_PATH	NESPI_DIR "/BENCH.TXT"
+#define PROFILE_PATH	NESPI_DIR "/PROFILE.TXT"
+#define LAST_PATH	NESPI_DIR "/LAST.TXT"
+#define CFG_PATH	NESPI_DIR "/nespi.cfg"
+#define PADS_PATH	NESPI_DIR "/pads.cfg"
+#define PALETTE_PATH	NESPI_DIR "/palette.pal"
+#define SAVE_DIR	NESPI_DIR "/saves"
+#define SHOT_DIR	NESPI_DIR "/shots"
+
+#ifndef BENCH_WARMUP
+#define BENCH_WARMUP	1800		// 30 s of play before measuring
+#endif
+#ifndef BENCH_FRAMES
+#define BENCH_FRAMES	3600		// then 60 s measured
+#endif
+
+#define COLOR_TEXT	RGB (220, 220, 220)
+#define COLOR_TITLE	RGB (255, 200, 0)
+#define COLOR_OK	RGB (80, 230, 80)
+#define COLOR_ERR	RGB (255, 70, 70)
+#define COLOR_DIM	RGB (140, 140, 140)
 
 enum TShutdownMode
 {
@@ -46,7 +83,7 @@ public:
 	boolean Initialize (void);
 	TShutdownMode Run (void);
 
-	// Console (screen during boot + serial + LOG.TXT)
+	// console (screen during boot + serial + LOG.TXT)
 	void Log (const char *pLine, u32 nColor);
 	void Fatal (int nCode, const char *pMessage);
 	void SaveLog (void);
@@ -54,42 +91,62 @@ public:
 	static CKernel *Get (void) { return s_pThis; }
 
 private:
+	// kernel.cpp
+	unsigned LastPlayed (void);
+	void PowerOff (void);
+
+	// console.cpp
 	void RedrawConsole (void);
+	void WriteTextFile (const char *pPath, const char *pText);
+
+	// games.cpp
 	u8 *LoadFile (const char *pPath, size_t *pSize, int nHeap, const char *pShowName);
 	void ScanGames (void);
-	void SetupCoreOnce (void);
-	void ApplyPalette (void);
-	void SetTvMode (void);
 	boolean LoadGame (unsigned nIndex);
 	void UnloadGame (void);
+	void GamePath (char *pOut, size_t nSize, const char *pExt) const;
+	void StateExt (char *pExt, unsigned nSlot) const;
 	boolean SaveState (const char *pPath);
 	boolean LoadState (const char *pPath);
-	void SnapshotForUI (void);
-	void Benchmark (void);
-	unsigned RunList (unsigned nSel);
-	void RunGame (void);
-	void SetupBeamRacing (void);
-	void ShowUIFrame (boolean bWait = TRUE, const char *pTopMessage = 0);
-	void WriteTextFile (const char *pPath, const char *pText);
-	const char *SaveScreenshot (void);
-	void RunCredits (void);
-	void ResetGameStats (void);
-	void GamePath (char *pOut, size_t nSize, const char *pExt) const;
-	void ReportWindow (boolean bFinal);
+	static size_t BatteryLoad (void *pBuffer, size_t nMax);	// the core's battery RAM
+	static void BatterySave (const void *pData, size_t nSize);
+
+	// settings.cpp
+	static const char *TvName (int nMode);
+	static const char *PaletteName (int nPalette);
 	static const char *FilterName (unsigned nFilter);
-	void ApplyVideoMode (void);
-	void VideoModeTag (char *pOut, size_t nSize);
 	static const char *FilterShort (unsigned nFilter);
-	void StateExt (char *pExt, unsigned nSlot) const;
+	void ApplyPalette (void);
+	void SetTvMode (void);
+	void VideoModeTag (char *pOut, size_t nSize);
+	void ApplyVideoMode (void);
 	void LoadConfig (void);
 	void SaveConfig (void);
-	void RunSystemMenu (void);
-	boolean PowerOffCountdown (void);
 	void LoadPads (void);
 	void SavePads (void);
+
+	// menus.cpp
+	void SnapshotForUI (void);
+	void ShowUIFrame (boolean bWait = TRUE, const char *pTopMessage = 0);
+	unsigned RunList (unsigned nSel);
+	void RunSystemMenu (void);
 	int ChoosePad (void);
 	boolean RunMapping (unsigned nSlot, boolean bOverGame);
-	void PowerOff (void);
+	boolean PowerOffCountdown (void);
+	void RunCredits (void);
+
+	// gameloop.cpp
+	void SetupCoreOnce (void);
+	void RunGame (void);
+	const char *SaveScreenshot (void);
+
+	// bench.cpp
+	void Benchmark (void);
+
+	// report.cpp, racing.cpp
+	void ResetGameStats (void);
+	void ReportWindow (boolean bFinal);
+	void SetupBeamRacing (void);
 
 private:
 	// do not change this order

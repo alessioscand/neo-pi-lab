@@ -3,8 +3,10 @@
 #
 CIRCLEHOME = @CIRCLEHOME@
 
-OBJS	= main.o kernel.o profile.o raster.o race.o video.o fontdata.o input.o audio.o ui.o \
-	  ziphelp.o nes_sys.o miniz.o tvfilter.o ntsc_blargg.o fbmap.o
+OBJS	= main.o kernel.o console.o games.o settings.o menus.o gameloop.o bench.o \
+	  report.o racing.o frame.o \
+	  video.o ui.o fontdata.o ziphelp.o nes_sys.o miniz.o tvfilter.o ntsc_blargg.o \
+	  audio.o input.o raster.o race.o profile.o fbmap.o stats.o pacing.o
 
 # Nestopia (C++ with exceptions and the standard library) is built apart,
 # with its own flags, into libnst.a: Circle's rules (no exceptions, no
