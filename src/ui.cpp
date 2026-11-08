@@ -7,6 +7,9 @@
 #include <circle/util.h>
 #include <circle/timer.h>
 
+// "..." in one character (UI_ELLIPSIS), for names cut in the menus
+static const u8 s_Ellipsis[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x92, 0x00};
+
 #define OX	UI_SRC_X
 #define OY	UI_SRC_Y
 #define ARGB(c)	(0xFF000000u | (c))
@@ -166,7 +169,8 @@ void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bLis
 	for (unsigned i = 0; s[i] != '\0'; i++)
 	{
 		unsigned ch = (unsigned char) s[i];
-		if (ch < 32 || ch >= 128)
+		const boolean bEllipsis = ch == (unsigned char) UI_ELLIPSIS[0];
+		if (!bEllipsis && (ch < 32 || ch >= 128))
 		{
 			ch = '?';
 		}
@@ -180,7 +184,7 @@ void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bLis
 			u32 col = pass == 0 ? 0x000000 : c;
 			for (unsigned r = 0; r < 8; r++)
 			{
-				u8 nRow = bListFont ? m_Font[ch][r] : g_MenuFont[ch - 32][r];
+				u8 nRow = bEllipsis ? s_Ellipsis[r] : (bListFont ? m_Font[ch][r] : g_MenuFont[ch - 32][r]);
 				for (unsigned k = 0; k < 8; k++)
 				{
 					if (nRow & (0x80 >> k))
@@ -316,7 +320,8 @@ void CUI::Backdrop (boolean bOverGame)
 	}
 }
 
-// a name longer than nMax characters: cut after the last whole word, then "..."
+// a name longer than nMax characters: cut after the last whole word that
+// fits, then the one-character ellipsis
 static void CutAtWord (char *pOut, const char *pName, unsigned nMax)
 {
 	size_t nLen = strlen (pName);
@@ -325,21 +330,22 @@ static void CutAtWord (char *pOut, const char *pName, unsigned nMax)
 		memcpy (pOut, pName, nLen + 1);
 		return;
 	}
-	unsigned nCut = nMax - 3;
+	unsigned nCut = nMax - 1;
 	while (nCut > 0 && pName[nCut] != ' ')
 	{
 		nCut--;
 	}
 	if (nCut == 0)
 	{
-		nCut = nMax - 3;		// one long word: cut inside it
+		nCut = nMax - 1;		// one long word: cut inside it
 	}
 	while (nCut > 0 && strchr (" -,:", pName[nCut - 1]))
 	{
 		nCut--;
 	}
 	memcpy (pOut, pName, nCut);
-	strcpy (pOut + nCut, "...");
+	pOut[nCut] = UI_ELLIPSIS[0];
+	pOut[nCut + 1] = '\0';
 }
 
 // how far a title nExtra pixels too long has scrolled after nTicks frames:
@@ -486,27 +492,10 @@ void CUI::DrawPanelMenu (boolean bOverGame, const char *pTitle,
 	int x0 = 44, x1 = UI_W - 45;
 	Panel (x0, y0, x1, y0 + nInner + 8);
 
-	// at most 24 characters fit inside the frame: cut long names at a word
+	// 25 characters fit inside the frame (200 px); a longer name is cut at a
+	// word and ends with the one-character ellipsis
 	char Title[34];
-	strncpy (Title, pTitle, 33);
-	Title[33] = '\0';
-	if (strlen (Title) > 24)
-	{
-		Title[24] = '\0';
-		for (int i = 23; i > 8; i--)
-		{
-			if (Title[i] == ' ')
-			{
-				Title[i] = '\0';
-				break;
-			}
-		}
-		size_t n = strlen (Title);
-		while (n > 0 && (Title[n - 1] == ' ' || Title[n - 1] == '-' || Title[n - 1] == ':'))
-		{
-			Title[--n] = '\0';
-		}
-	}
+	CutAtWord (Title, pTitle, 25);
 	CText (y0 + 10, Title, UI_TITLE);
 	Fill (x0 + 8, y0 + 22, x1 - x0 - 15, 1, UI_FRAME2);
 

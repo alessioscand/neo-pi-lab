@@ -123,6 +123,9 @@ void CKernel::RunGame (void)
 	m_Video.SetSource (FrameSource ());
 	if (g_Race.bGame)
 	{
+		// a game that gave up on beam racing keeps the double buffer until it is left:
+		// the next game started from the list tries again
+		g_Race.pRacer->Rearm ();
 		g_Race.pRacer->SetGeometry (m_Video.GetGameY (), m_Video.GetCPUScale (), m_Video.GetHVSFactor (), g_NesSource.nH);
 		g_Race.pRacer->Restart ();
 		g_Race.pRacer->ResetStats ();

@@ -235,7 +235,7 @@ namespace Nes
 			for (uint i=0; i < 2; ++i)
 				square[i].Reset();
 
-			triangle.Reset();
+			triangle.Reset( hard );
 			noise.Reset( cpu.GetModel() );
 			dmc.Reset( cpu.GetModel() );
 
@@ -611,6 +611,18 @@ namespace Nes
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
 			}
 
+			/* The sample in progress outlives the frame, so a state saved
+			   between frames nearly always lands part way through one. The
+			   rate goes with it, as the sums only mean anything at the rate
+			   that built them.
+			*/
+			state.Begin( AsciiId<'S','0','1'>::V )
+				.Write32( cycles.rate )
+				.Write32( cycles.sampleSpan )
+				.Write64( cycles.sampleSum )
+				.Write64( cycles.sampleNext )
+			.End();
+
 			state.End();
 		}
 
@@ -724,12 +736,33 @@ namespace Nes
 						cycles.sampleSpan = 0;
 						break;
 					}
+
+					case AsciiId<'S','0','1'>::V:
+					{
+						// Written after S00, so this overrides the clear above
+						const dword rate = state.Read32();
+						const dword span = state.Read32();
+						const qaword sum = state.Read64();
+						const qaword next = state.Read64();
+
+						if (rate == cycles.rate && span < rate)
+						{
+							cycles.sampleSpan = span;
+							cycles.sampleSum = sum;
+							cycles.sampleNext = next;
+						}
+						break;
+					}
 				}
 
 				state.End();
 			}
 
-			if (ctrl != STATUS_FRAME_IRQ_ENABLE)
+			/* An inhibited 4-step sequence still runs its IRQ clock, as its
+			   flag reads set for two cycles, so only the 5-step sequence has
+			   none. A state without the IRQ chunk has its clock rebuilt.
+			*/
+			if (ctrl & STATUS_SEQUENCE_5_STEP)
 			{
 				cycles.frameIrqClock = Cpu::CYCLE_MAX;
 				cycles.frameIrqRepeat = 0;
@@ -1773,7 +1806,7 @@ namespace Nes
 		Apu::Triangle::Triangle()
 		: outputVolume(0) {}
 
-		void Apu::Triangle::Reset()
+		void Apu::Triangle::Reset(const bool hard)
 		{
 			Oscillator::Reset();
 
@@ -1787,8 +1820,11 @@ namespace Nes
 
 			status = STATUS_COUNTING;
 			waveLength = 0;
-			//linearCtrl = 0;
 			linearCounter = 0;
+
+			// $4008 is zero at power-on and left alone by a soft reset
+			if (hard)
+				linearCtrl = 0;
 
 			lengthCounter.Reset();
 
@@ -2243,16 +2279,24 @@ namespace Nes
 
 		void Apu::Dmc::SaveState(State::Saver& state,const dword chunk,const Cpu& cpu,const Cycle dmcMcClock) const
 		{
-			NST_VERIFY( dmcMcClock >= cpu.GetCycles() );
-
+			/* The clock can trail the CPU at the end of a frame, as its halt
+			   is dispatched two cycles after it. REG only holds a lead, so a
+			   lag is carried in LAG.
+			*/
 			dword dmcClock = dmcMcClock;
+			dword lag = 0;
 
 			if (dmcClock > cpu.GetCycles())
+			{
 				dmcClock = (dmcClock - cpu.GetCycles()) / cpu.GetClock();
+			}
 			else
+			{
+				lag = (cpu.GetCycles() - dmcClock) / cpu.GetClock();
 				dmcClock = 0;
+			}
 
-			NST_VERIFY( dmcClock <= 0x1FFF && dmcMcClock == cpu.GetCycles() + dmcClock * cpu.GetClock() );
+			NST_VERIFY( dmcClock <= 0x1FFF && lag <= 0xFF );
 
 			state.Begin( chunk );
 
@@ -2280,6 +2324,8 @@ namespace Nes
 
 				state.Begin( AsciiId<'R','E','G'>::V ).Write( data ).End();
 			}
+
+			state.Begin( AsciiId<'L','A','G'>::V ).Write8( lag ).End();
 
 			{
 				/* Pending DMA scheduling state, as small biased cycle deltas
@@ -2352,6 +2398,8 @@ namespace Nes
 			abortClock = 0;
 			enableClock = 0;
 
+			Cycle lag = 0;
+
 			while (const dword chunk = state.Begin())
 			{
 				switch (chunk)
@@ -2374,6 +2422,11 @@ namespace Nes
 
 						break;
 					}
+
+					case AsciiId<'L','A','G'>::V:
+
+						lag = state.Read8() * cpu.GetClock();
+						break;
 
 					case AsciiId<'D','M','E'>::V:
 					{
@@ -2427,6 +2480,8 @@ namespace Nes
 
 				state.End();
 			}
+
+			dmcClock -= NST_MIN( lag, dmcClock );
 		}
 
 		void Apu::Dmc::RebaseFrame(const Cycle frame)
@@ -2612,17 +2667,15 @@ namespace Nes
 					++haltDelay;
 			}
 
-			/* Reloads take halt + dummy + alignment + get (4) from their normal
-			 * put-phase halt, one less when a write delay flips the parity.
+			/* After the halt comes the dummy cycle and then the get, with an
+			 * alignment cycle in between whenever the get would otherwise
+			 * land on a put. The cost is therefore fixed by which half of
+			 * the APU cycle the halt itself lands on: 3 from a get, 4 from
+			 * a put. Loads schedule their halt on a get and reloads on a
+			 * put, and every write cycle the halt sits out moves it to the
+			 * other half.
 			*/
 			uint cyclesToSteal = ((haltParity + haltDelay) & 1) ? 3 : 4;
-
-			/* Loads always take halt + dummy + fetch (3): the transfer start
-			 * delay already aligned the sequence, write delays don't add the
-			 * alignment cycle back.
-			*/
-			if (haltParity)
-				cyclesToSteal = 3;
 
 			if (cpu.GetOamDMA())
 			{
@@ -2857,6 +2910,31 @@ namespace Nes
 			{
 				const Cycle halt = dmc.GetLoadClock() + cpu.GetClock(2);
 
+				/* RDY is sampled only on read cycles, so a halt attempt
+				 * landing on a CPU write is retried on the next cycle while
+				 * the write itself completes on schedule. Arriving here from
+				 * that write's own bus access means it has not been committed
+				 * yet, and stealing now would drag it along with the transfer.
+				 * Walk the run of write cycles the halt has to sit out: if it
+				 * reaches past the current cycle then the CPU has not been
+				 * halted yet, so leave the transfer pending for the retry
+				 * cycle to claim. During an OAM DMA the CPU runs no write
+				 * cycles of its own.
+				*/
+				if (!cpu.GetOamDMA())
+				{
+					Cycle start = halt;
+
+					for (uint delay=0; delay < 3 && start <= cpu.GetCycles() && cpu.IsWriteCycle( start ); ++delay)
+						start += cpu.GetClock();
+
+					if (start > cpu.GetCycles())
+					{
+						cpu.WakeAt( start );
+						return;
+					}
+				}
+
 				/* A DMC output clock due at or before the load's sample fetch
 				 * happens first: an empty buffer at that clock stays empty
 				 * rather than seeing the not-yet-fetched sample byte.
@@ -2872,10 +2950,14 @@ namespace Nes
 		{
 			// DMAs are processed (and the CPU woken) at their halt time, 2
 			// CPU cycles after the DMC clock, rather than at the clock itself.
-			// A halt landing exactly on the upcoming cycle is left for that
-			// cycle's own memory access to claim, so a halted read observes
-			// the DMA's sample fetch on the bus.
-			ClockPendingLoad( cpu.GetCycles(), 0 );
+
+			/* Clock() runs between instructions, so a load halting on the
+			   upcoming cycle has halted the opcode fetch at pc. Claim it as a
+			   collision with that read: the fetch then sees the sample byte on
+			   the bus, which matters when pc is in open bus. A reload halting
+			   there is left for that cycle's own memory access to claim.
+			*/
+			ClockPendingLoad( cpu.GetCycles(), cpu.GetPC() );
 
 			if (cycles.dmcClock + cpu.GetClock(2) < cpu.GetCycles())
 				ClockDmc( cpu.GetCycles() );
@@ -3154,6 +3236,13 @@ namespace Nes
 
 		NES_POKE_D(Apu,4010)
 		{
+			/* The timer reloads one cycle after the DMC clock, so a clock two
+			   or more cycles before this write has already reloaded with the
+			   old rate. Settle it first; a write on the reload cycle itself
+			   still sets the rate it reloads with.
+			*/
+			cpu.Update();
+
 			if (!dmc.WriteReg0( data, cpu.GetModel() ))
 				cpu.ClearIRQ( Cpu::IRQ_DMC );
 		}

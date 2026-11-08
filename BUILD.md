@@ -24,7 +24,8 @@ Build host: Linux x86_64.
 
    then `./makeall` in each copy, and `make` in `addon/SDCard` and `addon/fatfs`.
 4. **Nestopia** in `third_party/nestopia`: `source/core` of Nestopia UE
-   (see `third_party/nestopia/COMMIT`), with `nes_ntsc`. The xBR, hqx, 2xSaI and
+   (see `third_party/nestopia/COMMIT`), plus six core fixes from
+   libretro/nestopia listed there, with `nes_ntsc`. The xBR, hqx, 2xSaI and
    ScaleX video filters are left out (`NST_NO_*`). `build.sh` applies
    `patches/nestopia-linehook.py` to the copy of `NstPpu.cpp` in the build
    directory: a hook called at the end of each scanline (dot 338), used for

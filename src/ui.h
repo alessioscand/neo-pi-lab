@@ -12,6 +12,7 @@
 // the menus keep neo-pi's layout: 304x224 inside a 320x264 buffer
 #define UI_W		304
 #define UI_H		224
+#define UI_ELLIPSIS	"\x1F"	// "..." in one character (Text, CText)
 #define UI_SRC_PITCH	320
 #define UI_SRC_LINES	264
 #define UI_SRC_X	8

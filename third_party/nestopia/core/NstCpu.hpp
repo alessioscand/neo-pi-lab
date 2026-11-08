@@ -63,6 +63,7 @@ namespace Nes
 
 			void Reset(bool);
 			void SetRamPowerState(uint);
+			void FillRam(byte*,dword) const;
 			void Boot(bool);
 			void ExecuteFrame(Sound::Output*);
 			void EndFrame();
@@ -422,8 +423,6 @@ namespace Nes
 				typedef byte (&Ref)[RAM_SIZE];
 				typedef const byte (&ConstRef)[RAM_SIZE];
 
-				void Reset(CpuModel);
-
 				NES_DECL_PEEK( Ram_0 );
 				NES_DECL_POKE( Ram_0 );
 				NES_DECL_PEEK( Ram_1 );
@@ -531,6 +530,11 @@ namespace Nes
 			qaword GetMonotonicCycles() const
 			{
 				return ticks + cycles.count;
+			}
+
+			uint GetPC() const
+			{
+				return pc;
 			}
 
 			uint GetBusData() const
