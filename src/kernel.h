@@ -185,32 +185,30 @@ private:
 	boolean			m_bVideoOK;
 	boolean			m_bSDOK;
 	boolean			m_bQuiet;	// UI/emulation running: console not drawn
-	char			m_LastRaw[MaxLineLen];
-	unsigned		m_nRepeat;
 
 	// console lines
 	char			m_Lines[MaxLines][MaxLineLen];
 	u32			m_LineColor[MaxLines];
 	unsigned		m_nLines;
+	char			m_LastRaw[MaxLineLen];
+	unsigned		m_nRepeat;
 
-	// emulator data
+	// games
 	u8			*m_pGame;
 	size_t			 m_nGameSize;
 	TGameEntry		*m_pGames;
 	unsigned		 m_nGames;
 	int			 m_nLoaded;	// index in m_pGames, -1 = none
+	unsigned		 m_nShots;	// last screenshot number used
 
-	// frame pacing / statistics
-	boolean			 m_bVSync;
+	// configuration (nespi.cfg); the picture's settings are in g_Pic (frame.h)
+	unsigned		 m_nFilter;	// FILTER_*
+	boolean			 m_bHVS;	// FALSE: scaler=cpu
+
+	// frame pacing and the status line
+	boolean			 m_bVSync;	// FALSE: the firmware's vsync does not block
 	boolean			 m_bStatusOn;
 	unsigned		 m_nClearStatus;
-	unsigned		 m_nShots;
-
-	// configuration (nespi.cfg)
-	unsigned		 m_nFilter;	// FILTER_*
-	boolean			 m_bHVS;		// FALSE: scaler=cpu in nespi.cfg
-	boolean			 m_bFilterAllowed;	// Pi 4 only
-	boolean			 m_bForceFilters;	// filters=on in nespi.cfg
 
 	// RunGame
 	struct TPlay

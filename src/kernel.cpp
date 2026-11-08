@@ -21,21 +21,19 @@ CKernel::CKernel (void)
 	m_bVideoOK (FALSE),
 	m_bSDOK (FALSE),
 	m_bQuiet (TRUE),		// black screen while booting; text only on errors
-	m_nRepeat (0),
 	m_nLines (0),
+	m_nRepeat (0),
 	m_pGame (0),
 	m_nGameSize (0),
 	m_pGames (0),
 	m_nGames (0),
 	m_nLoaded (-1),
-	m_bVSync (TRUE),
-	m_bStatusOn (FALSE),
-	m_nClearStatus (0),
 	m_nShots (0),
 	m_nFilter (0),
 	m_bHVS (TRUE),
-	m_bFilterAllowed (TRUE),
-	m_bForceFilters (FALSE)
+	m_bVSync (TRUE),
+	m_bStatusOn (FALSE),
+	m_nClearStatus (0)
 {
 	s_pThis = this;
 	m_LastRaw[0] = '\0';

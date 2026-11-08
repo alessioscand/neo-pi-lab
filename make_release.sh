@@ -6,8 +6,8 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-VERSION=$(sed -n 's/^#define NESPI_VERSION[[:space:]]*"\(.*\)".*/\1/p' src/nespi.h)
-[ -n "$VERSION" ] || { echo "ERROR: NESPI_VERSION not found in src/nespi.h"; exit 1; }
+VERSION=$(sed -n 's/^#define PROJECT_VERSION[[:space:]]*"\(.*\)".*/\1/p' src/project.h)
+[ -n "$VERSION" ] || { echo "ERROR: PROJECT_VERSION not found in src/project.h"; exit 1; }
 echo "nes-pi $VERSION"
 
 fail () { echo "ERROR: $*"; exit 1; }
@@ -18,7 +18,7 @@ K3=build/rpi3/kernel8.img
 for K in "$K4" "$K3"; do
 	[ -f "$K" ] || fail "$K missing: run ./build.sh all"
 	grep -qa "$VERSION" "$K" || fail "$K does not contain version $VERSION: rebuild"
-	[ "$K" -nt src/nespi.h ] || fail "$K is older than src/nespi.h: rebuild"
+	[ "$K" -nt src/project.h ] || fail "$K is older than src/project.h: rebuild"
 done
 
 # firmware and configuration files in dist/sd
