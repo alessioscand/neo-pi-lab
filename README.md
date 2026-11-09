@@ -5,7 +5,7 @@ A streamlined, bare-metal NES emulator for Raspberry Pi 3 & 4, with highly respo
 Website:
 [alessioscand.github.io/nes-pi](https://alessioscand.github.io/nes-pi/)
 
-nes-pi is a human-led, vibe-coded experiment by Alessio Scanderebech.
+**nes-pi** is a human-led, vibe-coded experiment by Alessio Scanderebech.  
 If you enjoy nes-pi, [neo-pi](https://alessioscand.github.io/neo-pi/) or
 [m92-pi](https://alessioscand.github.io/m92-pi/), please consider
 supporting me: [paypal.me/alescandy](https://paypal.me/alescandy)
@@ -21,8 +21,7 @@ after the ritual blow into the cartridge? And then there's the input lag of
 modern displays and emulators, which makes games that need split-second
 timing even harder to play.
 
-So, after [neo-pi](https://alessioscand.github.io/neo-pi/), and making the
-most of vibe coding (with all due respect to its detractors), I decided to
+So, after [neo-pi](https://alessioscand.github.io/neo-pi/), I decided to
 take on its sibling project: **nes-pi**. The idea was the same: a focused
 experience, as close to the original hardware as possible, with the
 conveniences of modern emulation (save states, turbo buttons, the look of
@@ -56,7 +55,7 @@ With the TV filter, a second core filters each line as it arrives.
 
 **User experience.** The rest was a matter of choices. Display options are
 cut to the bone: integer scaling is always on, and the TV filter offers just
-the ways a NES could reach a TV of the time (RGB, S-Video, composite, RF),
+the ways a NES could reach a TV of the time (RGB, S-Video, composite, RF)
 so you just play, with nothing to tweak and nothing to distract you. Save
 states are limited to one slot per game: enough to soften the gameplay
 (think of the last levels of some notoriously unforgiving platformers) while
