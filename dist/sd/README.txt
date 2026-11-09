@@ -84,11 +84,10 @@ OPTIONS MENU (Select in the game list, or from the in-game menu)
   A or Left/Right changes a setting, B goes back. Settings are stored in
   nespi/nespi.cfg. The menus go through the TV filter too, like the game.
 
-  TV FILTER     OFF / RGB / S-VIDEO / COMPOSITE / RF: how the console
-                reaches the TV. OFF: sharp square pixels. RGB: the same,
-                with light scanlines. S-VIDEO, COMPOSITE and RF use
-                blargg's NTSC filter: a 4:3 picture as a TV of the time
-                showed it.
+  TV FILTER     OFF / RGB / S-VIDEO / COMPOSITE / RF: Video filters.
+                OFF: sharp square pixels. RGB: light scanlines.
+                S-VIDEO, COMPOSITE and RF use blargg's NTSC filter:
+                a 4:3 picture as a TV of the time showed it.
                 S-VIDEO: soft colours.
                 COMPOSITE: also the colour fringes, the dots crawling
                 along the edges and the shimmer, and the dithering blended
