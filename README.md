@@ -1,6 +1,7 @@
 # nes-pi
 
-A streamlined, bare-metal NES emulator for Raspberry Pi 3 & 4, with highly responsive input.
+A streamlined, bare-metal NES emulator for Raspberry Pi 3 & 4, with highly
+responsive input.
 
 Website:
 [alessioscand.github.io/nes-pi](https://alessioscand.github.io/nes-pi/)
