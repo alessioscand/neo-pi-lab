@@ -15,7 +15,7 @@ for P in $TARGETS; do
 	# frontend is rebuilt from scratch
 	mkdir -p "$B"
 	find "$B" -maxdepth 1 -type f ! -name '*.nst.o' ! -name 'libnst.a' -delete
-	cp "$ROOT"/common/*.cpp "$ROOT"/src/*.c "$ROOT"/src/*.cpp "$B"/
+	cp "$ROOT"/common/*.c "$ROOT"/common/*.cpp "$ROOT"/src/*.c "$ROOT"/src/*.cpp "$B"/
 	cp "$ROOT"/third_party/miniz/miniz.c "$B"/
 	# Nestopia core, with the line hook (patches/nestopia-linehook.py)
 	mkdir -p "$B/nst"
@@ -30,7 +30,7 @@ for P in $TARGETS; do
 	fi
 	CIRCLE="$ROOT/circle-rpi${P}mc"
 	[ "$P" = "qemu" ] && CIRCLE="$ROOT/circle-qemumc"
-	sed "s|@CIRCLEHOME@|$CIRCLE|; s|@SRC@|$ROOT/src|g; s|@COMMON@|$ROOT/common|g; s|@MINIZ@|$ROOT/third_party/miniz|" \
+	sed "s|@CIRCLEHOME@|$CIRCLE|; s|@SRC@|$ROOT/src|g; s|@COMMON@|$ROOT/common|g; s|@MINIZ@|$ROOT/third_party/miniz|; s|@SNESNTSC@|$ROOT/third_party/snes_ntsc|" \
 		"$ROOT/src/Makefile.in" > "$B/Makefile"
 	[ "$P" = "qemu" ] && echo "DEFINE += -DPROJECT_FAKEPAD $QEMU_DEFINES" >> "$B/Makefile"
 	make -C "$B" -j16 libnst.a

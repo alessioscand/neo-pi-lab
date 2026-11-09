@@ -3,18 +3,26 @@
  *
  * Each line, as soon as the PPU finishes it, gets its colours from the palette
  * and goes to the screen (the buffer being shown, while racing); with the TV
- * filter it goes to core 1, which filters it and draws it (tvcore.h).
+ * filter it goes to core 1, which filters it and draws it (tvcore.h). The
+ * menus go through the same filter.
  */
 #ifndef FRAME_H
 #define FRAME_H
 
 #include "screen.h"
 #include "nes_core.h"
-#include "ntsc_blargg.h"
+#include "composite.h"
 #include <stdint.h>
 
 #define SAMPLE_RATE	48000
 #define AUDIO_FRAME	(SAMPLE_RATE / 60)	// samples per frame (Nestopia paced at 60 Hz)
+
+// TV FILTER: OFF / RGB (no filter: see TPicture), S-VIDEO, COMPOSITE, RF
+#define NTSC_OFF	0
+#define NTSC_SVIDEO	1
+#define NTSC_COMPOSITE	2
+#define NTSC_RF		3
+#define NTSC_OUT_W	COMP_OUT_W		// 602 pixels from 256
 
 // Overscan: a TV of the time hid about 8 lines at the top and at the bottom,
 // and a little of each side, and games leave rubbish there (tiles being
@@ -50,13 +58,18 @@ extern const TVideoSource g_UISource;
 const TVideoSource &FrameSource (void);	// the game's, with or without the TV filter
 const u32 *FrameBuffer (void);
 
+// the menus' picture (UI buffer) as the video output gets it: through the
+// TV filter when it is on
+const TVideoSource &FrameUISource (void);
+const u32 *FrameUIBuffer (const u32 *pUI);
+
 extern int16_t g_AudioBuf[2 * (AUDIO_FRAME + 64)];	// the frame's sound, stereo
 
 extern volatile unsigned g_Pad[2];		// pads for the next frame (NES_* bits)
 extern volatile boolean g_bRaceFrame;		// this frame is raced
 
 void FrameSetup (CScreen *pVideo);		// once: the line hook, the TV filter's output
-void FrameSetTvMode (int nMode);		// NTSC_*: the TV filter's tables for it
+void FrameSetTvMode (int nMode);		// NTSC_*: the TV filter's tables for it (takes a while)
 unsigned FrameTvTimeUs (unsigned nLines);	// how long the TV filter takes for nLines
 void FrameRun (void);				// one frame: emulation, picture and sound
 

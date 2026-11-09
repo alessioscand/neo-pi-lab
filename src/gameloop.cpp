@@ -606,8 +606,8 @@ boolean CKernel::PlayMenu (const u32 Pad[2])
 		static const TButtonHint Hints[2] = {{'A', "SELECT"}, {'B', "RESUME"}};
 		m_pUI->DrawPanelMenu (TRUE, m_pGames[m_nLoaded].Name, Items, nIds, P.nMenuSel,
 				      P.MenuMsg, P.nMenuMsgColor, Hints, 2, 0);
-		m_Video.SetSource (g_UISource);
-		m_Video.DrawGame (m_pUI->GetBuffer (), FALSE);
+		m_Video.SetSource (FrameUISource ());
+		m_Video.DrawGame (FrameUIBuffer (m_pUI->GetBuffer ()), TRUE);
 	}
 	else
 	{

@@ -6,7 +6,7 @@ WHAT'S NEW IN 1.0.0
   - Beam racing: the picture reaches the TV line by line, 2-4 ms after
     the pads are read.
   - Pixel perfect: integer scaling, and five TV filters from sharp
-    square pixels to an old aerial cable, with no added lag.
+    square pixels to grandma's TV, with no added lag.
   - Game list with each game's region (NTSC, PAL, DENDY); long titles
     scroll.
   - Save states, cartridge saves, screenshots, lazy finger, two players.
@@ -82,14 +82,13 @@ IN-GAME MENU (hold Select for 1 second; B resumes the game)
 OPTIONS MENU (Select in the game list, or from the in-game menu)
 
   A or Left/Right changes a setting, B goes back. Settings are stored in
-  nespi/nespi.cfg. The menus are always sharp, whatever the TV filter.
+  nespi/nespi.cfg. The menus go through the TV filter too, like the game.
 
   TV FILTER     OFF / RGB / S-VIDEO / COMPOSITE / RF: how the console
                 reaches the TV. OFF: sharp square pixels. RGB: the same,
                 with light scanlines. S-VIDEO, COMPOSITE and RF use
                 blargg's NTSC filter: a 4:3 picture as a TV of the time
-                showed it, colours included (made by the filter from the
-                NES video signal).
+                showed it.
                 S-VIDEO: soft colours.
                 COMPOSITE: also the colour fringes, the dots crawling
                 along the edges and the shimmer, and the dithering blended
@@ -98,11 +97,11 @@ OPTIONS MENU (Select in the game list, or from the in-game menu)
                 worst, for true nostalgia.
                 Each line is filtered as soon as it is drawn, on its own
                 CPU core: no added lag, and beam racing still works.
-  PALETTE       (OFF and RGB only) The NES colours: NESTOPIA (Nestopia's
-                own), CONSUMER (a TV of the time), SONY TV (the Sony
-                CXA2025AS decoder of many US TVs), CUSTOM (your own: rename
-                any .pal file of 64 or 512 colours to palette.pal and put
-                it in nespi; CUSTOM appears only if the file is there).
+  PALETTE       The NES colours: NESTOPIA (Nestopia's own), CONSUMER (a TV
+                of the time), SONY TV (the Sony CXA2025AS decoder of many
+                US TVs), CUSTOM (your own: rename any .pal file of 64 or
+                512 colours to palette.pal and put it in nespi; CUSTOM
+                appears only if the file is there).
   SPRITE FLICKER
                 ORIGINAL: like the console, at most 8 sprites on a line,
                 so when more share a line games make them flicker.

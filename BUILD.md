@@ -25,7 +25,7 @@ Build host: Linux x86_64.
    then `./makeall` in each copy, and `make` in `addon/SDCard` and `addon/fatfs`.
 4. **Nestopia** in `third_party/nestopia`: `source/core` of Nestopia UE
    (see `third_party/nestopia/COMMIT`), plus six core fixes from
-   libretro/nestopia listed there, with `nes_ntsc`. The xBR, hqx, 2xSaI and
+   libretro/nestopia listed there. The xBR, hqx, 2xSaI and
    ScaleX video filters are left out (`NST_NO_*`). `build.sh` applies
    `patches/nestopia-linehook.py` to the copy of `NstPpu.cpp` in the build
    directory: a hook called at the end of each scanline (dot 338), used for
@@ -55,8 +55,9 @@ m92-pi (nothing NES in them: what they need comes from `src/project.h`).
 - `src/racing.cpp` - beam racing state for the game loop
 - `src/report.cpp`, `src/bench.cpp` - the per-minute report in the log; BENCH
 - `src/nes_core.cpp/.h` - Nestopia wrapper (load, frame, pads, audio, battery saves, states)
-- `src/ntsc_blargg.c` - the TV filter (nes_ntsc: S-Video, composite, RF); `common/tvcore.cpp` runs it
-  on core 1, one line at a time
+- `common/composite.c` - the TV filter (blargg's snes_ntsc, in `third_party/snes_ntsc`); its looks
+  (S-Video, composite, RF) are in `src/frame.cpp`; `common/tvcore.cpp` runs it on core 1, one line
+  at a time
 - `src/screen.h` - `CScreen`, the only interface the kernel draws through; `src/video.cpp` is
   the HDMI one (double-buffered framebuffer, HVS/CPU integer scaling, scanlines, text in the black bands).
   A CRT output on the composite jack would be another `CScreen`, chosen in `kernel.h`

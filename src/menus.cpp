@@ -23,8 +23,8 @@ void CKernel::SnapshotForUI (void)
 void CKernel::ShowUIFrame (boolean bWait, const char *pTopMessage)
 {
 	m_Video.SetRacing (FALSE);
-	m_Video.SetSource (g_UISource);
-	m_Video.DrawGame (m_pUI->GetBuffer (), FALSE);	// menus always sharp, whatever the TV filter
+	m_Video.SetSource (FrameUISource ());
+	m_Video.DrawGame (FrameUIBuffer (m_pUI->GetBuffer ()), TRUE);	// with the TV filter, like the game
 	if (pTopMessage && pTopMessage[0])
 	{
 		// in the black band above the picture, like the in-game messages
@@ -154,18 +154,14 @@ void CKernel::RunSystemMenu (void)
 		u32 nNew = nPrev == ~0u ? 0 : (n & ~nPrev);
 		nPrev = n;
 
-		// PALETTE only with RGB: the TV filter makes its own colours
-		const boolean bPaletteOff = g_Pic.nTvMode != NTSC_OFF;
 		if (nNew & BTN_UP)
 		{
 			nSel = (nSel + SmCount - 1) % SmCount;
-			if (bPaletteOff && nSel == SmPalette) nSel = (nSel + SmCount - 1) % SmCount;
 			pMsg = "";
 		}
 		if (nNew & BTN_DOWN)
 		{
 			nSel = (nSel + 1) % SmCount;
-			if (bPaletteOff && nSel == SmPalette) nSel = (nSel + 1) % SmCount;
 			pMsg = "";
 		}
 		int nDir = (nNew & (BTN_A | BTN_RIGHT)) ? 1 : ((nNew & BTN_LEFT) ? -1 : 0);
@@ -189,10 +185,6 @@ void CKernel::RunSystemMenu (void)
 			}
 
 			case SmPalette:
-				if (bPaletteOff)
-				{
-					break;
-				}
 			{
 				int nCount = g_Pic.nCustomPal ? 4 : 3;	// CUSTOM only with nespi/palette.pal
 				g_Pic.nPalette = (g_Pic.nPalette + nCount + nDir) % nCount;
@@ -252,7 +244,6 @@ void CKernel::RunSystemMenu (void)
 		Items[SmTv].pValue = g_Pic.nTvMode == NTSC_OFF && !g_Pic.bTvScanlines ? "OFF" : TvLabels[g_Pic.nTvMode & 3];
 		static const char *PaletteLabels[4] = {"NESTOPIA", "CONSUMER", "SONY TV", "CUSTOM"};
 		Items[SmPalette].pValue = PaletteLabels[g_Pic.nPalette & 3];
-		Items[SmPalette].bDisabled = g_Pic.nTvMode != NTSC_OFF;
 		Items[SmSprites].pValue = g_Pic.bUnlimSprites ? "REDUCED" : "ORIGINAL";
 
 		static const TButtonHint Hints[2] = {{'A', "CHANGE"}, {'B', "BACK"}};

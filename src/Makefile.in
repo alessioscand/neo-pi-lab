@@ -5,7 +5,7 @@ CIRCLEHOME = @CIRCLEHOME@
 
 OBJS	= main.o kernel.o console.o games.o settings.o menus.o gameloop.o bench.o \
 	  report.o racing.o frame.o \
-	  video.o ui.o fontdata.o ziphelp.o nes_sys.o miniz.o ntsc_blargg.o \
+	  video.o ui.o fontdata.o ziphelp.o nes_sys.o miniz.o composite.o \
 	  audio.o input.o raster.o race.o profile.o fbmap.o stats.o pacing.o tvcore.o
 
 # Nestopia (C++ with exceptions and the standard library) is built apart,
@@ -20,7 +20,7 @@ LIBS	= libnst.a \
 	  $(CIRCLEHOME)/lib/fs/libfs.a \
 	  $(CIRCLEHOME)/lib/libcircle.a
 
-EXTRAINCLUDE = -I @SRC@ -I @COMMON@ -I @MINIZ@
+EXTRAINCLUDE = -I @SRC@ -I @COMMON@ -I @MINIZ@ -isystem @SNESNTSC@
 
 C_STANDARD = -std=gnu11
 OPTIMIZE = -O2

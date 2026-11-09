@@ -310,10 +310,11 @@ POSSIBILITY OF SUCH DAMAGES.
 		     END OF TERMS AND CONDITIONS
 
 ==============================================================================
-nes_ntsc (blargg's NTSC filter, part of the Nestopia core) - GNU LGPL 2.1
-or later
+snes_ntsc (TV FILTER) - GNU LGPL version 2.1 or later
 ==============================================================================
-Copyright (C) 2006-2007 Shay Green
+snes_ntsc 0.2.2, Copyright (C) 2006-2007 Shay Green (blargg).
+Its source code (unmodified) is in nes-pi's repository,
+third_party/snes_ntsc.
 
 		  GNU LESSER GENERAL PUBLIC LICENSE
 		       Version 2.1, February 1999
