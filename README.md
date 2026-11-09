@@ -71,9 +71,8 @@ you.
   [Nestopia](https://github.com/0ldsk00l/nestopia) core: battery saves,
   palettes and optional sprite limit removal
 - Responsive controls: pads are read every millisecond and, thanks to
-  beam racing, each line goes to the screen just after it is drawn: the
-  pads are read a couple of milliseconds before the picture appears,
-  almost as on the original hardware with a CRT
+  beam racing, a couple of milliseconds before the picture appears, almost
+  as on the original hardware with a CRT
 - *Lazy finger* (turbo buttons): Select + B toggles it; while on, holding A
   or B fires repeatedly
 - Save states: one slot per game
