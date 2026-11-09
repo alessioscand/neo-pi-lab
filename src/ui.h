@@ -63,7 +63,6 @@ public:
 	CUI (void);
 
 	// sfix.sfix from the user's BIOS: the console's own 8x8 font
-	void SetFont (const u8 *pSFix, size_t nSize);
 
 	u32 *GetBuffer (void)	{ return m_Buf; }
 
@@ -87,7 +86,6 @@ public:
 	// Credits over the darkened game (call SnapshotGame first)
 	void DrawCredits (const char *pVersion);
 	void DrawMessage (const char *pTitle, const char *pLine1, const char *pLine2);
-	void DrawBlack (void);
 
 	static u32 Dim (u32 c, unsigned nPercent);
 
@@ -98,8 +96,8 @@ private:
 	void Backdrop (boolean bOverGame);
 	void Logo (void);
 	void Panel (int x0, int y0, int x1, int y1);
-	void Text (int x, int y, const char *s, u32 c, unsigned nTall = 1, boolean bListFont = FALSE);
-	void CText (int y, const char *s, u32 c, unsigned nTall = 1, boolean bListFont = FALSE);
+	void Text (int x, int y, const char *s, u32 c, unsigned nTall = 1, boolean bMixedCase = FALSE);
+	void CText (int y, const char *s, u32 c, unsigned nTall = 1, boolean bMixedCase = FALSE);
 	void Buttons (int y, const TButtonHint *pHints, unsigned nHints);
 	void ButtonIcon (int x, int y, char cButton);
 	static u32 ButtonColorOf (char cButton);
@@ -107,8 +105,6 @@ private:
 private:
 	u32	m_Buf[UI_SRC_PITCH * UI_SRC_LINES] __attribute__ ((aligned (64)));
 	u32	m_Snapshot[UI_W * UI_H];
-	u8	m_Font[128][8];		// list font (sfix.sfix), 1 bit per pixel, bit 7 = left
-	boolean	m_bFont;
 	int	m_nClipX0, m_nClipX1;	// Pixel draws only from x0 to x1 - 1
 };
 

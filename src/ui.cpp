@@ -15,45 +15,11 @@ static const u8 s_Ellipsis[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x92, 0x00}
 #define ARGB(c)	(0xFF000000u | (c))
 
 CUI::CUI (void)
-:	m_bFont (FALSE),
-	m_nClipX0 (0),
+:	m_nClipX0 (0),
 	m_nClipX1 (UI_W)
 {
-	// list font: the console's own (sfix.sfix); until it is loaded, the menu font
-	memset (m_Font, 0, sizeof m_Font);
-	for (unsigned c = 32; c < 128; c++)
-	{
-		memcpy (m_Font[c], g_MenuFont[c - 32], 8);
-	}
 	memset (m_Buf, 0, sizeof m_Buf);
 	memset (m_Snapshot, 0, sizeof m_Snapshot);
-}
-
-void CUI::SetFont (const u8 *pSFix, size_t nSize)
-{
-	// Fix-layer tiles: 32 bytes, columns ordered 0x10, 0x18, 0x00, 0x08,
-	// low nibble = left pixel. In the BIOS font colour 1 is the glyph.
-	if (pSFix == 0 || nSize < 128 * 32)
-	{
-		return;
-	}
-	static const unsigned Col[4] = {0x10, 0x18, 0x00, 0x08};
-	for (unsigned c = 32; c < 128; c++)
-	{
-		const u8 *t = pSFix + c * 32;
-		for (unsigned y = 0; y < 8; y++)
-		{
-			u8 nRow = 0;
-			for (unsigned p = 0; p < 4; p++)
-			{
-				u8 b = t[Col[p] + y];
-				if ((b & 0x0F) == 1) nRow |= 0x80 >> (p * 2);
-				if ((b >> 4) == 1)   nRow |= 0x80 >> (p * 2 + 1);
-			}
-			m_Font[c][y] = nRow;
-		}
-	}
-	m_bFont = TRUE;
 }
 
 void CUI::Pixel (int x, int y, u32 c)
@@ -163,8 +129,9 @@ void CUI::Panel (int x0, int y0, int x1, int y1)
 	Fill (x0 + 4, y0 + 4, x1 - x0 - 7, y1 - y0 - 7, UI_PANEL);
 }
 
-// Menu font (Matinee, D.Guard) by default; bListFont = the console font of the game list
-void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bListFont)
+// the menu font (Matinee, D. Guard): capitals only, its lower case is hard to
+// read small; bMixedCase keeps the lower case (game names)
+void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bMixedCase)
 {
 	for (unsigned i = 0; s[i] != '\0'; i++)
 	{
@@ -174,9 +141,9 @@ void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bLis
 		{
 			ch = '?';
 		}
-		if (!bListFont && ch >= 'a' && ch <= 'z')
+		if (!bMixedCase && ch >= 'a' && ch <= 'z')
 		{
-			ch -= 32;		// menu font: capitals only (its lower case is hard to read)
+			ch -= 32;
 		}
 		for (int pass = 0; pass < 2; pass++)		// shadow, then glyph
 		{
@@ -184,7 +151,7 @@ void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bLis
 			u32 col = pass == 0 ? 0x000000 : c;
 			for (unsigned r = 0; r < 8; r++)
 			{
-				u8 nRow = bEllipsis ? s_Ellipsis[r] : (bListFont ? m_Font[ch][r] : g_MenuFont[ch - 32][r]);
+				u8 nRow = bEllipsis ? s_Ellipsis[r] : g_MenuFont[ch - 32][r];
 				for (unsigned k = 0; k < 8; k++)
 				{
 					if (nRow & (0x80 >> k))
@@ -200,12 +167,12 @@ void CUI::Text (int x, int y, const char *s, u32 c, unsigned nTall, boolean bLis
 	}
 }
 
-void CUI::CText (int y, const char *s, u32 c, unsigned nTall, boolean bListFont)
+void CUI::CText (int y, const char *s, u32 c, unsigned nTall, boolean bMixedCase)
 {
-	Text ((UI_W - (int) strlen (s) * 8) / 2, y, s, c, nTall, bListFont);
+	Text ((UI_W - (int) strlen (s) * 8) / 2, y, s, c, nTall, bMixedCase);
 }
 
-// Neo Geo buttons: 13 px disc in the button colour with a 5x7 letter drawn
+// pad buttons: 13 px disc in the button colour with a 5x7 letter drawn
 // for it (exactly centred), as on the controller
 static const u32 ButtonColor[4] = {0xDC2828, 0xF0C81E, 0x28B446, 0x325AE6};	// A red B yellow C green D blue
 static const u32 ButtonInk[4]   = {0xFFFFFF, 0x281E00, 0xFFFFFF, 0xFFFFFF};
@@ -556,17 +523,6 @@ void CUI::DrawBox (const char *pLine1, const char *pLine2, const TButtonHint *pH
 	if (pLine1) CText (92, pLine1, UI_WHITE);
 	if (pLine2) CText (110, pLine2, UI_DIM);
 	if (pHint) Buttons (126, pHint, 1);
-}
-
-void CUI::DrawBlack (void)
-{
-	for (int y = 0; y < UI_H; y++)
-	{
-		for (int x = 0; x < UI_W; x++)
-		{
-			m_Buf[(y + OY) * UI_SRC_PITCH + x + OX] = 0xFF000000u;
-		}
-	}
 }
 
 void CUI::DrawLoading (const char *pName, unsigned nPercent)

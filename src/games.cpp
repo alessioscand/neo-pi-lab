@@ -7,8 +7,6 @@
 #include <circle/alloc.h>
 #include <circle/new.h>
 
-extern "C" void *nespi_zip_extract (const void *pZip, size_t nZipSize, const char *pName, size_t *pSize);
-
 // battery-backed RAM: read when a game loads, written when it is unloaded
 static char s_BatteryPath[160];
 
