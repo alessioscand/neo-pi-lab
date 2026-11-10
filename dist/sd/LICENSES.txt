@@ -14,10 +14,12 @@ SEGA is a trademark of its owner. The games are not included.
 
 ==============================================================================
 MAME (the descriptions of the System 16B board, its video, the uPD7759 and
-the audio circuit, which s16-pi's core follows) - BSD 3-Clause
+the audio circuit, which s16-pi's core follows; the FD1094, FD1089 and
+MC-8123 decryption and the game tables, taken from it) - BSD 3-Clause
 ==============================================================================
 Copyright (c) the MAME authors, among them Aaron Giles, Juergen Buchmueller,
-Mike Balfour, Howie Cohen, Olivier Galibert and Couriersud.
+Mike Balfour, Howie Cohen, Olivier Galibert, Couriersud, Nicola Salmoria,
+Andreas Naive, Charles MacDonald and David Widel.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

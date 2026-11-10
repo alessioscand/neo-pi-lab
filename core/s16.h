@@ -25,18 +25,41 @@ typedef int64_t s64;
 
 // ---- game description (core/s16_games.inc) --------------------------------
 
-enum { RGN_MAIN, RGN_TILES, RGN_SPRITES, RGN_SOUND, RGN_MCU, RGN_KEY, RGN_COUNT };
+enum { RGN_MAIN, RGN_TILES, RGN_SPRITES, RGN_SOUND, RGN_MCU, RGN_KEY, RGN_SOUNDKEY, RGN_COUNT };
 enum { LOAD_BYTES, LOAD_EVEN, LOAD_ODD };		// plain, or every other byte (16-bit ROM pairs)
 enum { BOARD_5358_SMALL, BOARD_5358, BOARD_5521, BOARD_5704, BOARD_5797 };
 enum { CPU_68000, CPU_FD1094, CPU_FD1089A, CPU_FD1089B };
+enum { MCU_NONE, MCU_8751, MCU_SIM_TTURF, MCU_SIM_WB3 };	// (the last two: not dumped, MAME's stand-ins)
 
 struct TS16Rom
 {
 	const char *pName;
-	u32 nCRC, nSize;
+	u32 nCRC, nSize;			// of the file
 	u8 nRegion, nLoad;
 	u32 nOffset;
 	u32 nFrom, nLength;			// a part of the file only (nLength 0: all of it)
+};
+
+struct TS16DipSetting { u16 nValue; const char *pName; };
+
+struct TS16DipDef
+{
+	u16 nMask, nDefault;			// SW1 in the low byte, SW2 in the high byte
+	const char *pName, *pLocation;
+	u16 nFirst, nCount;			// its settings, in the input set's table
+};
+
+// what a bit of the four input ports is: 0 nothing, IN_SYSTEM | bit of the
+// front-end's system byte, IN_PLAYER | player << 4 | bit of the player's byte
+enum { IN_SYSTEM = 0x40, IN_PLAYER = 0x80 };
+
+struct TS16Inputs
+{
+	const TS16DipDef *pDips;
+	const TS16DipSetting *pSettings;
+	u16 nDswDefault;
+	u8 nPlayers, nButtons;
+	u8 Port[4][8];				// service, player 1, unused, player 2
 };
 
 struct TS16Game
@@ -45,11 +68,17 @@ struct TS16Game
 	const TS16Rom *pRoms;
 	int nRoms;
 	u32 RegionSize[RGN_COUNT];
-	u8 nBoard, nCpu;
-	bool bMcu;				// an 8751 drives the mapper
-	u16 nDswDefault;
-	u8 nPlayers, nButtons;
+	const TS16Inputs *pInputs;
+	u8 nBoard, nCpu, nMcu;
+	bool bMc8123;				// the sound program is encrypted
 };
+
+// ---- the encrypted CPUs (s16_crypt.cpp) -------------------------------------
+
+void s16_fd1094_decrypt (const u8 *pKey, u8 nState, u32 nAddress, const u8 *pSrc, u8 *pDst, u32 nBytes);
+u8 s16_fd1094_irq_state (const u8 *pKey);
+void s16_fd1089_decrypt (bool bB, const u8 *pKey, u32 nAddress, const u8 *pSrc, u8 *pOpcodes, u8 *pData, u32 nBytes);
+void s16_mc8123_decode (const u8 *pKey, u8 *pRom, u8 *pOpcodes, u32 nLength);
 
 // ---- video (s16_video.cpp) --------------------------------------------------
 

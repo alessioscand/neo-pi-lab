@@ -15,19 +15,55 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <dirent.h>
 
 
-static std::string s_Dir;
+static std::string s_Dir, s_ParentDir;
 static uint32_t s_Frame[S16_WIDTH * S16_HEIGHT];
 
-static int Fetch (void *, const char *pName, uint32_t, uint32_t nSize, uint8_t *pDst)
+static uint32_t Crc32 (const uint8_t *p, size_t n)
 {
-	const std::string Path = s_Dir + "/" + pName;
-	FILE *f = fopen (Path.c_str (), "rb");
-	if (!f) return 0;
-	const size_t n = fread (pDst, 1, nSize, f);
-	fclose (f);
-	return n == nSize;
+	uint32_t c = 0xffffffff;
+	while (n--)
+	{
+		c ^= *p++;
+		for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xedb88320 & (0 - (c & 1)));
+	}
+	return ~c;
+}
+
+// by name in the set's folder and in its parent's, then by CRC (a clone can
+// hold the same data under another name), as the front-end does in the zips
+static int Fetch (void *, const char *pName, uint32_t nCRC, uint32_t nSize, uint8_t *pDst)
+{
+	for (const std::string *pDir : {&s_Dir, &s_ParentDir})
+	{
+		FILE *f = pDir->empty () ? 0 : fopen ((*pDir + "/" + pName).c_str (), "rb");
+		if (!f) continue;
+		const size_t n = fread (pDst, 1, nSize, f);
+		fclose (f);
+		if (n == nSize) return 1;
+	}
+	for (const std::string *pDir : {&s_Dir, &s_ParentDir})
+	{
+		DIR *d = pDir->empty () ? 0 : opendir (pDir->c_str ());
+		if (!d) continue;
+		while (struct dirent *e = readdir (d))
+		{
+			FILE *f = fopen ((*pDir + "/" + e->d_name).c_str (), "rb");
+			if (!f) continue;
+			const size_t n = fread (pDst, 1, nSize, f);
+			const bool bEnd = fgetc (f) == EOF;
+			fclose (f);
+			if (n == nSize && bEnd && Crc32 (pDst, nSize) == nCRC)
+			{
+				closedir (d);
+				return 1;
+			}
+		}
+		closedir (d);
+	}
+	return 0;
 }
 
 static void Line (void *, int y, const uint32_t *pRGB)
@@ -76,6 +112,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 	s_Dir = std::string (argv[1]) + "/" + pSet;
+	if (s16_game_parent (nGame)[0]) s_ParentDir = std::string (argv[1]) + "/" + s16_game_parent (nGame);
 	char Missing[64];
 	if (!s16_load (nGame, Fetch, 0, Missing, sizeof Missing))
 	{

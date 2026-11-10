@@ -45,6 +45,8 @@ static struct TMachine
 	s32 nMainFrac, nSoundFrac, nMcuFrac;	// cycles each CPU is owed, 16.16 (negative: it ran ahead)
 	int nMainStall;			// 68000 cycles to lose (see McuPortWrite)
 	u32 nSoundBank;			// offset in the sound region
+	u8 nFdState;			// FD1094: the state the program chose,
+	bool bFdIrq;			// and whether an interrupt is being served
 	u16 Mult[2];			// 171-5797: the 315-5248 multiplier
 	struct TCompare { u16 Regs[16]; u8 nBit; } Compare[2];	// and its two 315-5250
 	u8 Player[4], nSystem;		// from the front-end, active high
@@ -69,7 +71,10 @@ static inline void VideoSync (void)	{ if (s_pSync) s_pSync (s_pSyncCtx); }
 // reads and writes the mapper's own registers. One entry per 64 KB.
 
 enum { K_MAPPER, K_ROM, K_WORK, K_SPRITE, K_PALETTE, K_TILE, K_TEXT, K_IO, K_BANK, K_MATH, K_COMPARE };
-static struct TPage { u8 nKind; u32 nMask; const u8 *pRead; } s_Page[256];
+// pRead: what the 68000 reads there; pOpcodes: what it fetches as opcodes (the
+// same, without an encrypted CPU). A null pointer on a ROM page: not decrypted
+// yet (see the encrypted CPUs below).
+static struct TPage { u8 nKind; u32 nMask; const u8 *pRead, *pOpcodes; u32 nRom; } s_Page[256];
 
 static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, const u8 *pMem, u32 nLength,
 		      u32 nRomOffset)
@@ -79,7 +84,8 @@ static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, c
 		TPage &P = s_Page[a >> 16];
 		P.nKind = nKind;
 		P.nMask = nMask;
-		P.pRead = pMem;
+		P.pRead = P.pOpcodes = pMem;
+		P.nRom = 0;
 		if (nKind == K_ROM)
 		{
 			// the ROM repeats in its region; nothing past its end
@@ -87,10 +93,12 @@ static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, c
 			if (nOffs >= s_pGame->RegionSize[RGN_MAIN])
 			{
 				P.nKind = K_MAPPER;
-				P.pRead = 0;
+				P.pRead = P.pOpcodes = 0;
 				continue;
 			}
-			P.pRead = pMem + nOffs;
+			P.nRom = nOffs;
+			P.pRead = s_pGame->nCpu == CPU_FD1089A || s_pGame->nCpu == CPU_FD1089B ? 0 : pMem + nOffs;
+			P.pOpcodes = s_pGame->nCpu == CPU_68000 ? P.pRead : 0;
 		}
 	}
 }
@@ -103,7 +111,8 @@ static void UpdateMapping (void)
 	{
 		s_Page[i].nKind = K_MAPPER;
 		s_Page[i].nMask = 0;
-		s_Page[i].pRead = 0;
+		s_Page[i].pRead = s_Page[i].pOpcodes = 0;
+		s_Page[i].nRom = 0;
 	}
 	const u8 *pRom = s_pRegion[RGN_MAIN];
 	const bool bSmall = s_pGame->nBoard == BOARD_5358_SMALL, b5358 = bSmall || s_pGame->nBoard == BOARD_5358;
@@ -148,6 +157,84 @@ static void UpdateMapping (void)
 static u16 MainRead16 (u32 a);
 static void MainWrite16 (u32 a, u16 d, u16 nMask);
 
+// ---- the encrypted CPUs ------------------------------------------------------------
+// FD1094: the opcodes are encrypted, the data is not, and the key changes with
+// the chip's state: 256 states, chosen by the program (CMPI.L #$xxxxFFFF,D0),
+// plus one for the interrupts. A page of opcodes is decrypted the first time it
+// is fetched in a state and kept; a change of state only forgets the pointers.
+// FD1089: opcodes and data are both encrypted, each in its own way, and the key
+// depends on where the mapper has put the ROM: a page is decrypted the first
+// time it is used at an address and kept until it moves.
+// The first 8 bytes of an FD1094 program decrypt in a special way: here they
+// are taken to be at address 0, where every board has them.
+
+#define ROM_PAGES	32		// 64 KB pages of program ROM, at most
+static u8 *s_pFd1094[256][ROM_PAGES];	// by state and ROM page
+static struct TFd1089 { u8 *pOpcodes, *pData; u32 nRom; } s_Fd1089[256];	// by page of the 68000
+
+static void CryptFree (void)
+{
+	for (unsigned i = 0; i < 256; i++)
+	{
+		for (unsigned k = 0; k < ROM_PAGES; k++)
+		{
+			free (s_pFd1094[i][k]);
+			s_pFd1094[i][k] = 0;
+		}
+		free (s_Fd1089[i].pOpcodes);
+		free (s_Fd1089[i].pData);
+		s_Fd1089[i].pOpcodes = s_Fd1089[i].pData = 0;
+	}
+}
+
+static u8 Fd1094State (void)	{ return M.bFdIrq ? s16_fd1094_irq_state (s_pRegion[RGN_KEY]) : M.nFdState; }
+
+// the chip changes state: every ROM page is looked up again at its next fetch
+static void Fd1094Changed (void)
+{
+	for (unsigned i = 0; i < 256; i++)
+	{
+		if (s_Page[i].nKind == K_ROM) s_Page[i].pOpcodes = 0;
+	}
+}
+
+// fills in the pointers of a ROM page that has none; false: no memory
+static bool PageDecrypt (TPage &P, unsigned nPage)
+{
+	const u8 *pSrc = s_pRegion[RGN_MAIN] + P.nRom;
+	if (s_pGame->nCpu == CPU_FD1094)
+	{
+		u8 *&p = s_pFd1094[Fd1094State ()][(P.nRom >> 16) % ROM_PAGES];
+		if (!p)
+		{
+			p = (u8 *) malloc (0x10000);
+			if (!p)
+			{
+				CryptFree ();		// start again from this page
+				p = (u8 *) malloc (0x10000);
+				if (!p) return false;
+				Fd1094Changed ();
+			}
+			s16_fd1094_decrypt (s_pRegion[RGN_KEY], Fd1094State (), P.nRom, pSrc, p, 0x10000);
+		}
+		P.pOpcodes = p;
+		return true;
+	}
+	TFd1089 &D = s_Fd1089[nPage];
+	if (!D.pOpcodes || D.nRom != P.nRom)
+	{
+		if (!D.pOpcodes) D.pOpcodes = (u8 *) malloc (0x10000);
+		if (!D.pData) D.pData = (u8 *) malloc (0x10000);
+		if (!D.pOpcodes || !D.pData) return false;
+		D.nRom = P.nRom;
+		s16_fd1089_decrypt (s_pGame->nCpu == CPU_FD1089B, s_pRegion[RGN_KEY], nPage << 16, pSrc,
+				    D.pOpcodes, D.pData, 0x10000);
+	}
+	P.pOpcodes = D.pOpcodes;
+	P.pRead = D.pData;
+	return true;
+}
+
 // what an unmapped address returns: the word the 68000 has just fetched
 static u16 OpenBus (void)
 {
@@ -163,6 +250,7 @@ static u16 OpenBus (void)
 }
 
 static void MainIrq (int nLevel)	{ m68k_set_irq ((unsigned) nLevel); }
+static void MainReset (void);
 
 static void MapperWrite (unsigned nOffset, u8 nData)
 {
@@ -177,7 +265,7 @@ static void MapperWrite (unsigned nOffset, u8 nData)
 			const bool bReset = (nData & 3) == 3;
 			if (M.bMainReset && !bReset)
 			{
-				m68k_pulse_reset ();
+				MainReset ();
 			}
 			M.bMainReset = bReset;
 			m68k_end_timeslice ();
@@ -232,27 +320,22 @@ static u16 MapperRead (unsigned nOffset, bool bWide)
 }
 
 // inputs, active low as the board reads them
-static u8 ServicePort (void)
+static u8 InputPort (int nPort)
 {
+	const u8 *pBits = s_pGame->pInputs->Port[nPort];
 	u8 n = 0xff;
-	if (M.nSystem & 0x10) n &= ~0x01;	// coin 1
-	if (M.nSystem & 0x20) n &= ~0x02;	// coin 2
-	if (M.nSystem & 0x01) n &= ~0x10;	// start 1
-	if (M.nSystem & 0x02) n &= ~0x20;	// start 2
-	return n;
-}
-
-static u8 PlayerPort (int p)
-{
-	const u8 b = M.Player[p];
-	u8 n = 0xff;
-	if (b & 0x40) n &= ~0x01;		// button 3
-	if (b & 0x10) n &= ~0x02;		// button 1
-	if (b & 0x20) n &= ~0x04;		// button 2
-	if (b & 0x04) n &= ~0x10;		// down
-	if (b & 0x08) n &= ~0x20;		// up
-	if (b & 0x01) n &= ~0x40;		// right
-	if (b & 0x02) n &= ~0x80;		// left
+	for (int b = 0; b < 8; b++)
+	{
+		const u8 c = pBits[b];
+		if (c & IN_PLAYER)
+		{
+			if (M.Player[(c >> 4) & 3] & (1 << (c & 7))) n &= (u8) ~(1 << b);
+		}
+		else if (c & IN_SYSTEM)
+		{
+			if (M.nSystem & (1 << (c & 7))) n &= (u8) ~(1 << b);
+		}
+	}
 	return n;
 }
 
@@ -262,13 +345,7 @@ static u16 IoRead (u32 nOffset)
 	switch (nOffset & (0x3000 / 2))
 	{
 	case 0x1000 / 2:
-		switch (nOffset & 3)
-		{
-		case 0:  return ServicePort ();
-		case 1:  return PlayerPort (0);
-		case 3:  return PlayerPort (1);
-		default: return 0xff;
-		}
+		return InputPort (nOffset & 3);
 	case 0x2000 / 2:
 		return (nOffset & 1) ? (M.nDsw & 0xff) : (M.nDsw >> 8);	// SW1, SW2
 	}
@@ -390,7 +467,10 @@ static u16 MainRead16 (u32 a)
 	const TPage &P = s_Page[a >> 16];
 	switch (P.nKind)
 	{
-	case K_ROM: case K_WORK: { const u8 *p = P.pRead + (a & P.nMask & ~1u); return (u16) (p[0] << 8 | p[1]); }
+	case K_ROM:
+		if (!P.pRead && !PageDecrypt (s_Page[a >> 16], a >> 16)) return 0xffff;
+		[[fallthrough]];
+	case K_WORK: { const u8 *p = P.pRead + (a & P.nMask & ~1u); return (u16) (p[0] << 8 | p[1]); }
 	case K_SPRITE:	return V.SprRam[(a & 0x7ff) >> 1];
 	case K_PALETTE:	return V.PalRam[(a & 0xfff) >> 1];
 	case K_TILE:	return V.TileRam[(a & 0xffff) >> 1];
@@ -489,9 +569,26 @@ void m68k_write_memory_32 (unsigned a, unsigned d)
 	MainWrite16 (a & 0xffffff, (u16) (d >> 16), 0xffff);
 	MainWrite16 ((a + 2) & 0xffffff, (u16) d, 0xffff);
 }
-// opcodes and PC-relative data (the same memory until the FD1094 is there)
-unsigned m68k_read_immediate_16 (unsigned a)	{ return m68k_read_memory_16 (a); }
-unsigned m68k_read_immediate_32 (unsigned a)	{ return m68k_read_memory_32 (a); }
+// opcodes and their operands; PC-relative data is data
+unsigned m68k_read_immediate_16 (unsigned a)
+{
+	a &= 0xffffff;
+	TPage &P = s_Page[a >> 16];
+	if (P.nKind != K_ROM)
+	{
+		return MainRead16 (a & ~1u);
+	}
+	if (!P.pOpcodes && !PageDecrypt (P, a >> 16))
+	{
+		return 0xffff;
+	}
+	const u8 *p = P.pOpcodes + (a & 0xfffe);
+	return (unsigned) (p[0] << 8 | p[1]);
+}
+unsigned m68k_read_immediate_32 (unsigned a)
+{
+	return m68k_read_immediate_16 (a) << 16 | m68k_read_immediate_16 (a + 2);
+}
 unsigned m68k_read_pcrelative_8 (unsigned a)	{ return m68k_read_memory_8 (a); }
 unsigned m68k_read_pcrelative_16 (unsigned a)	{ return m68k_read_memory_16 (a); }
 unsigned m68k_read_pcrelative_32 (unsigned a)	{ return m68k_read_memory_32 (a); }
@@ -500,8 +597,53 @@ unsigned m68k_read_pcrelative_32 (unsigned a)	{ return m68k_read_memory_32 (a); 
 int s16_m68k_int_ack (int)
 {
 	m68k_set_irq (0);
+	if (s_pGame->nCpu == CPU_FD1094 && !M.bFdIrq)
+	{
+		M.bFdIrq = true;
+		Fd1094Changed ();
+	}
 	return (int) M68K_INT_ACK_AUTOVECTOR;
 }
+
+// FD1094, as MAME's fd1094_device::change_state: CMPI.L #$xxxxFFFF,D0 sets the
+// state (and with $01xx leaves the interrupt state too), RTE leaves it
+void s16_m68k_cmpild (unsigned nValue, int nReg)
+{
+	if (s_pGame->nCpu != CPU_FD1094 || nReg != 0 || (nValue & 0xffff) != 0xffff)
+	{
+		return;
+	}
+	const unsigned n = nValue >> 16;
+	switch (n & 0x300)
+	{
+	case 0x000: M.nFdState = (u8) n; break;
+	case 0x100: M.nFdState = (u8) n; M.bFdIrq = false; break;
+	case 0x200: M.bFdIrq = true; break;
+	case 0x300: M.bFdIrq = false; break;
+	}
+	Fd1094Changed ();
+}
+
+void s16_m68k_rte (void)
+{
+	if (s_pGame->nCpu == CPU_FD1094 && M.bFdIrq)
+	{
+		M.bFdIrq = false;
+		Fd1094Changed ();
+	}
+}
+}
+
+// the 68000's reset; the FD1094 goes back to its first state
+static void MainReset (void)
+{
+	M.nFdState = 0;
+	M.bFdIrq = false;
+	if (s_pGame->nCpu == CPU_FD1094)
+	{
+		Fd1094Changed ();
+	}
+	m68k_pulse_reset ();
 }
 
 // ---- 8751 ---------------------------------------------------------------------
@@ -510,7 +652,7 @@ int s16_m68k_int_ack (int)
 
 static u8 McuXRead (void *, u16 a)		{ return (a & 0xff) < 0x20 ? (u8) MapperRead (a, false) : 0xff; }
 static void McuXWrite (void *, u16 a, u8 d)	{ if ((a & 0xff) < 0x20) MapperWrite (a, d); }
-static u8 McuPortRead (void *, int nPort)	{ return nPort == 1 ? ServicePort () : 0xff; }
+static u8 McuPortRead (void *, int nPort)	{ return nPort == 1 ? InputPort (0) : 0xff; }
 static void McuPortWrite (void *, int nPort, u8)
 {
 	// as MAME (spin_68k_w): a write to port 1 takes the bus from the 68000 for
@@ -525,6 +667,15 @@ static void McuPortWrite (void *, int nPort, u8)
 // ---- sound CPU ---------------------------------------------------------------------
 
 static void SoundNmi (void)	{ z80_pulse_nmi (&s_Z80); }
+
+// MC-8123: the program's opcodes, decrypted apart from its data
+static u8 *s_pSoundOpcodes;
+
+static u8 SoundRead (void *, u16 a);
+extern "C" u8 s16_z80_opcode (void *, u16 a)
+{
+	return a < 0x8000 && s_pSoundOpcodes ? s_pSoundOpcodes[a] : SoundRead (0, a);
+}
 
 static u8 SoundRead (void *, u16 a)
 {
@@ -607,10 +758,10 @@ static void Reset (void)
 	M.nFrame = 0;
 	s16_video_reset (&V);
 	UpdateMapping ();
-	m68k_pulse_reset ();
+	MainReset ();
 	z80_reset (&s_Z80);
 	s16_sound_reset ();
-	if (s_pGame->bMcu)
+	if ((s_pGame->nMcu == MCU_8751))
 	{
 		s_Mcu.reset ();
 	}
@@ -638,6 +789,7 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 	}
 	u8 *pTemp = 0;
 	u32 nTempSize = 0;
+	const char *pHave = 0;
 	for (int i = 0; i < pGame->nRoms; i++)
 	{
 		const TS16Rom &R = pGame->pRoms[i];
@@ -650,10 +802,16 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 		}
 		if (R.nSize > nTempSize)
 		{
+			pHave = 0;
 			free (pTemp);
 			pTemp = (u8 *) malloc (nTempSize = R.nSize);
 		}
-		if (!pTemp || !pFetch (pCtx, R.pName, R.nCRC, R.nSize, pTemp)) goto missing;
+		if (pHave != R.pName)			// (the parts of a file follow each other)
+		{
+			pHave = 0;
+			if (!pTemp || !pFetch (pCtx, R.pName, R.nCRC, R.nSize, pTemp)) goto missing;
+			pHave = R.pName;
+		}
 		if (R.nLoad == LOAD_BYTES)
 		{
 			memcpy (pDst, pTemp + R.nFrom, nLength);
@@ -681,7 +839,7 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 			s_pRegion[RGN_SPRITES], pGame->RegionSize[RGN_SPRITES],
 			pGame->nBoard == BOARD_5358 || pGame->nBoard == BOARD_5358_SMALL);
 	memset (&M, 0, sizeof M);
-	M.nDsw = pGame->nDswDefault;
+	M.nDsw = pGame->pInputs->nDswDefault;
 
 	m68k_init ();
 	m68k_set_cpu_type (M68K_CPU_TYPE_68000);
@@ -691,7 +849,17 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 	s_Z80.port_in = SoundPortIn;
 	s_Z80.port_out = SoundPortOut;
 	s16_sound_init (SoundNmi);
-	if (pGame->bMcu)
+	if (pGame->bMc8123)
+	{
+		s_pSoundOpcodes = (u8 *) malloc (0x8000);
+		if (!s_pSoundOpcodes)
+		{
+			s16_unload ();
+			return 0;
+		}
+		s16_mc8123_decode (s_pRegion[RGN_SOUNDKEY], s_pRegion[RGN_SOUND], s_pSoundOpcodes, 0x8000);
+	}
+	if (pGame->nMcu == MCU_8751)
 	{
 		const i8751_cpu::TBus Bus = {0, McuXRead, McuXWrite, McuPortRead, McuPortWrite};
 		s_Mcu.init (s_pRegion[RGN_MCU], pGame->RegionSize[RGN_MCU], Bus);
@@ -713,6 +881,9 @@ void s16_unload (void)
 		free (s_pRegion[r]);
 		s_pRegion[r] = 0;
 	}
+	CryptFree ();
+	free (s_pSoundOpcodes);
+	s_pSoundOpcodes = 0;
 	s_bLoaded = false;
 	s_pGame = 0;
 }
@@ -747,7 +918,7 @@ static void RunLine (void)
 			M.nMainFrac -= (M.bMainReset ? nMain : m68k_execute (nMain)) << 16;
 		}
 
-		if (s_pGame->bMcu)
+		if ((s_pGame->nMcu == MCU_8751))
 		{
 			M.nMcuFrac += (s32) (s_nMcuPerLine / SLICES);
 			if (M.nMcuFrac >= 0x10000)
@@ -762,6 +933,34 @@ static void RunLine (void)
 			const unsigned nUsed = z80_step_n (&s_Z80, (unsigned) (M.nSoundFrac >> 16));
 			M.nSoundFrac -= (s32) (nUsed << 16);
 			s16_sound_advance (nUsed);
+		}
+	}
+}
+
+// The vertical blank without a real 8751: the interrupt and, for the two games
+// whose 8751 is not dumped, what MAME does in its place (tturf_i8751_sim,
+// wb3_i8751_sim): the sound command and the inputs pass through work RAM.
+static void McuStandIn (void)
+{
+	MainIrq (4);
+	u8 *const w = M.WorkRam;
+	if (s_pGame->nMcu == MCU_SIM_TTURF)
+	{
+		if (w[0x1d0])
+		{
+			MapperWrite (0x03, w[0x1d1]);
+			w[0x1d0] = 0;
+		}
+		w[0x1e6] = InputPort (0);	w[0x1e7] = 0;
+		w[0x1e8] = InputPort (1);	w[0x1e9] = 0;
+		w[0x1ea] = InputPort (3);	w[0x1eb] = 0;
+	}
+	else if (s_pGame->nMcu == MCU_SIM_WB3)
+	{
+		if (w[0x009])
+		{
+			MapperWrite (0x03, w[0x008]);
+			w[0x009] = 0;
 		}
 	}
 }
@@ -781,8 +980,8 @@ void s16_run_frame (void)
 		}
 		if (nLine == S16_HEIGHT)		// vertical blank
 		{
-			if (s_pGame->bMcu)	s_Mcu.set_int (0, true);
-			else			MainIrq (4);
+			if (s_pGame->nMcu == MCU_8751)	s_Mcu.set_int (0, true);
+			else				McuStandIn ();
 		}
 		else if (nLine == S16_LINES - 1)	// the scroll registers for the next frame
 		{
@@ -791,7 +990,7 @@ void s16_run_frame (void)
 		}
 		else if (nLine == 0)
 		{
-			if (s_pGame->bMcu)	s_Mcu.set_int (0, false);
+			if ((s_pGame->nMcu == MCU_8751))	s_Mcu.set_int (0, false);
 		}
 		if (nLine < S16_HEIGHT)
 		{
@@ -835,13 +1034,53 @@ const char *s16_game_parent (int n)		{ return Game (n) ? Game (n)->pParent : "";
 const char *s16_game_desc (int n)		{ return Game (n) ? Game (n)->pDesc : ""; }
 const char *s16_game_year (int n)		{ return Game (n) ? Game (n)->pYear : ""; }
 const char *s16_game_maker (int n)		{ return Game (n) ? Game (n)->pMaker : ""; }
-int s16_game_players (int n)			{ return Game (n) ? Game (n)->nPlayers : 0; }
-int s16_game_buttons (int n)			{ return Game (n) ? Game (n)->nButtons : 0; }
+int s16_game_players (int n)			{ return Game (n) ? Game (n)->pInputs->nPlayers : 0; }
+int s16_game_buttons (int n)			{ return Game (n) ? Game (n)->pInputs->nButtons : 0; }
 
-int s16_dip_count (int)				{ return 0; }
-int s16_dip_get (int, int, TS16Dip *)		{ return 0; }
-const char *s16_dip_setting_name (int, int, int, u16 *)	{ return ""; }
-u16 s16_dsw_default (int n)			{ return Game (n) ? Game (n)->nDswDefault : 0xffff; }
+int s16_dip_count (int n)
+{
+	int c = 0;
+	if (Game (n))
+	{
+		for (const TS16DipDef *d = Game (n)->pInputs->pDips; d->pName; d++) c++;
+	}
+	return c;
+}
+
+int s16_dip_get (int n, int i, TS16Dip *pDip)
+{
+	if (i < 0 || i >= s16_dip_count (n))
+	{
+		return 0;
+	}
+	const TS16DipDef &D = Game (n)->pInputs->pDips[i];
+	pDip->pName = D.pName;
+	pDip->pLocation = D.pLocation;
+	pDip->nMask = D.nMask;
+	pDip->nDefault = D.nDefault;
+	pDip->nSettings = D.nCount;
+	pDip->nCondMask = pDip->nCondValue = 0;
+	pDip->nCondOp = 0;
+	return 1;
+}
+
+const char *s16_dip_setting_name (int n, int i, int nSetting, u16 *pValue)
+{
+	if (i < 0 || i >= s16_dip_count (n))
+	{
+		return 0;
+	}
+	const TS16DipDef &D = Game (n)->pInputs->pDips[i];
+	if (nSetting < 0 || nSetting >= D.nCount)
+	{
+		return 0;
+	}
+	const TS16DipSetting &S = Game (n)->pInputs->pSettings[D.nFirst + nSetting];
+	if (pValue) *pValue = S.nValue;
+	return S.pName;
+}
+
+u16 s16_dsw_default (int n)			{ return Game (n) ? Game (n)->pInputs->nDswDefault : 0xffff; }
 
 void s16_set_player (int p, u8 nBits)		{ if (p >= 0 && p < 4) M.Player[p] = nBits; }
 void s16_set_system (u8 nBits)			{ M.nSystem = nBits; }

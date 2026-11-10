@@ -28,7 +28,7 @@ for F in bootcode.bin start.elf start4.elf fixup.dat fixup4.dat armstub8-rpi4.bi
 done
 
 # configuration files in dist/sd
-for F in config.txt cmdline.txt README.txt LICENSES.txt s16pi/PUT_GAMES_HERE.txt; do
+for F in config.txt cmdline.txt README.txt LICENSES.txt s16pi/PUT_GAMES_HERE.txt s16pi/list.txt; do
 	[ -f "dist/sd/$F" ] || fail "dist/sd/$F missing"
 done
 grep -q "^s16-pi $VERSION " dist/sd/README.txt || fail "dist/sd/README.txt does not start with 's16-pi $VERSION'"

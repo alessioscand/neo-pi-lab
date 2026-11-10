@@ -5,7 +5,7 @@
 #define PROJECT_H
 
 #define PROJECT_NAME	"s16-pi"
-#define PROJECT_VERSION	"0.1.0"
+#define PROJECT_VERSION	"0.2.0"
 
 /* The emulated picture */
 #define PROJECT_WIDTH	320

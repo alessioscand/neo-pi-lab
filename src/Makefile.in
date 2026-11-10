@@ -38,7 +38,7 @@ COREFLAGS = $(ARCH) $(COREOPT) -std=gnu++20 -fno-exceptions -fno-rtti -fno-math-
 	    -ffunction-sections -fdata-sections $(COREWARN) -DNDEBUG -I @CORE@ \
 	    -I @THIRD@/musashi -I @THIRD@/z80 -isystem @THIRD@/ymfm -DMUSASHI_CNF='"s16_m68kconf.h"'
 CORECFLAGS = $(ARCH) $(COREOPT) -std=gnu11 -fno-math-errno -ffunction-sections -fdata-sections -w -DNDEBUG \
-	    -I @CORE@ -I @THIRD@/musashi -I @THIRD@/z80 -DMUSASHI_CNF='"s16_m68kconf.h"'
+	    -I @CORE@ -I @THIRD@/musashi -I @THIRD@/z80 -DMUSASHI_CNF='"s16_m68kconf.h"' -DZ80_OPCODE_HOOK=s16_z80_opcode
 
 
 COREWARN = -w				# sources by others, as they are

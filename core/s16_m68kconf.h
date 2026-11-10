@@ -24,8 +24,13 @@ int s16_m68k_int_ack (int nLevel);
 #define M68K_EMULATE_BKPT_ACK       OPT_OFF
 #define M68K_EMULATE_TRACE          OPT_OFF
 #define M68K_EMULATE_RESET          OPT_OFF
-#define M68K_CMPILD_HAS_CALLBACK    OPT_OFF
-#define M68K_RTE_HAS_CALLBACK       OPT_OFF
+/* the FD1094 changes its key on CMPI.L #x,D0 and on RTE */
+#define M68K_CMPILD_HAS_CALLBACK    OPT_SPECIFY_HANDLER
+void s16_m68k_cmpild (unsigned nValue, int nReg);
+#define M68K_CMPILD_CALLBACK(v,r)   s16_m68k_cmpild(v,r)
+#define M68K_RTE_HAS_CALLBACK       OPT_SPECIFY_HANDLER
+void s16_m68k_rte (void);
+#define M68K_RTE_CALLBACK()         s16_m68k_rte()
 #define M68K_TAS_HAS_CALLBACK       OPT_OFF
 #define M68K_ILLG_HAS_CALLBACK      OPT_OFF
 #define M68K_EMULATE_FC             OPT_OFF

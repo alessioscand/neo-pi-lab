@@ -31,6 +31,16 @@ SOFTWARE.
 #define Z80_WRITE_BYTE(U, A, V) z->write_byte(U, A, V)
 #endif
 
+// s16-pi: the bytes fetched as opcodes (M1 cycles) can come from a function of
+// their own, for the sound CPUs that decrypt opcodes and data differently
+// (NEC MC-8123). Build with -DZ80_OPCODE_HOOK=<function>.
+#ifdef Z80_OPCODE_HOOK
+uint8_t Z80_OPCODE_HOOK(void*, uint16_t);
+#define Z80_READ_OPCODE(U, A) Z80_OPCODE_HOOK(U, A)
+#else
+#define Z80_READ_OPCODE(U, A) Z80_READ_BYTE(U, A)
+#endif
+
 enum z80_flagbit {
     cf = 0,
     nf = 1,
@@ -109,6 +119,10 @@ static inline uint16_t popw(z80* const z) {
 
 static inline uint8_t nextb(z80* const z) {
   return rb(z, z->pc++);
+}
+
+static inline uint8_t nextop(z80* const z) {
+  return Z80_READ_OPCODE(z->userdata, z->pc++);
 }
 
 static inline uint16_t nextw(z80* const z) {
@@ -773,7 +787,7 @@ static unsigned z80_step_s(z80* const z) {
   if (z->halted) {
     cyc += exec_opcode(z, 0x00);
   } else {
-    const uint8_t opcode = nextb(z);
+    const uint8_t opcode = nextop(z);
     cyc += exec_opcode(z, opcode);
   }
 
@@ -1742,10 +1756,10 @@ static unsigned exec_opcode(z80* const z, uint8_t opcode) {
     z->h_l_ = hl;
   } break; // exx
 
-  case 0xCB: cyc += 0; cyc += exec_opcode_cb(z, nextb(z)); break;
-  case 0xED: cyc += 0; cyc += exec_opcode_ed(z, nextb(z)); break;
-  case 0xDD: cyc += 0; cyc += exec_opcode_ddfd(z, nextb(z), &z->ix); break;
-  case 0xFD: cyc += 0; cyc += exec_opcode_ddfd(z, nextb(z), &z->iy); break;
+  case 0xCB: cyc += 0; cyc += exec_opcode_cb(z, nextop(z)); break;
+  case 0xED: cyc += 0; cyc += exec_opcode_ed(z, nextop(z)); break;
+  case 0xDD: cyc += 0; cyc += exec_opcode_ddfd(z, nextop(z), &z->ix); break;
+  case 0xFD: cyc += 0; cyc += exec_opcode_ddfd(z, nextop(z), &z->iy); break;
 
   default: break; // fprintf(stderr, "unknown opcode %02X\n", opcode); break;
   }

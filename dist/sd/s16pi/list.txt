@@ -1,0 +1,64 @@
+# s16-pi - names in the game list
+# One line per MAME set: set=Title, or set=Title|Region to choose the text
+# shown under the list too. Without |Region, the region comes from MAME's
+# name ("Golden Axe (set 6, US)" -> SET 6 US). A set missing here shows
+# MAME's full name. Titles longer than 33 characters are cut in the list.
+# Written by tools/gen_s16_tables.py; change it as you like.
+
+aliensyn=Alien Syndrome
+aliensyn3=Alien Syndrome
+aliensyn7=Alien Syndrome
+aliensynj=Alien Syndrome
+altbeast=Altered Beast
+altbeast2=Altered Beast
+altbeast4=Altered Beast
+altbeast5=Altered Beast
+altbeast6=Altered Beast
+altbeastj=Juuouki
+altbeastj1=Juuouki
+altbeastj3=Juuouki
+aurail=Aurail
+aurail1=Aurail
+aurailj=Aurail
+bayroute=Bay Route
+bayroute1=Bay Route
+bayroutej=Bay Route
+cotton=Cotton
+cottonj=Cotton
+cottonja=Cotton
+cottonu=Cotton
+ddux=Dynamite Dux
+ddux1=Dynamite Dux
+dduxj=Dynamite Dux
+eswat=Cyber Police ESWAT
+eswatj=Cyber Police ESWAT
+eswatj1=Cyber Police ESWAT
+eswatu=Cyber Police ESWAT
+fpoint=Flash Point
+fpoint1=Flash Point
+goldnaxe=Golden Axe
+goldnaxe1=Golden Axe
+goldnaxe2=Golden Axe
+goldnaxe3=Golden Axe
+goldnaxej=Golden Axe
+goldnaxeu=Golden Axe
+mvp=MVP
+mvpj=MVP
+riotcity=Riot City
+ryukyu=RyuKyu
+ryukyua=RyuKyu
+shinobi2=Shinobi
+shinobi3=Shinobi
+shinobi4=Shinobi
+shinobi5=Shinobi
+shinobi6=Shinobi
+tetris1=Tetris
+tetris2=Tetris
+toryumon=Toryumon
+tturf=Tough Turf
+tturfu=Tough Turf
+ultracin=Waku Waku Ultraman Racing
+wb3=Wonder Boy III - Monster Lair
+wb32=Wonder Boy III - Monster Lair
+wb33=Wonder Boy III - Monster Lair
+wb34=Wonder Boy III - Monster Lair
