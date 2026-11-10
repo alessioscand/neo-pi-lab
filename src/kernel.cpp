@@ -1,27 +1,35 @@
 /*
- * nes-pi - kernel: start-up, the main loop, power off
+ * s16-pi - kernel: start-up, the main flow (list, game, list...), power off
  */
 #include "kernel.h"
 #include "frame.h"
-#include <circle/machineinfo.h>
-#include <circle/bcmwatchdog.h>
-#include <circle/multicore.h>
-#include <circle/memory.h>
-#include "tvcore.h"
+#include "mcline.h"
 #include "fbmap.h"
+#include "tvcore.h"
+#include "s16_api.h"
+#include <circle/machineinfo.h>
+#include <circle/memory.h>
+#include <circle/multicore.h>
+#include <circle/bcmwatchdog.h>
 
 CKernel *CKernel::s_pThis = 0;
 
-// core 1: the TV filter (tvcore.h); cores 2 and 3 stay idle
-class CTvFilterCore : public CMultiCoreSupport
+// Core 1 draws the video lines while core 0 runs the two CPUs and the sound
+// (mcline.cpp); core 2 runs the COMPOSITE filter (tvcore.cpp); core 3 idles
+class CVideoCore : public CMultiCoreSupport
 {
 public:
-	CTvFilterCore (void) : CMultiCoreSupport (CMemorySystem::Get ()) {}
+	CVideoCore (void) : CMultiCoreSupport (CMemorySystem::Get ()) {}
 	void Run (unsigned nCore)
 	{
 		if (nCore == 1)
 		{
 			FbSetMair ();			// the framebuffer's write-combining type
+			McWorker ();
+		}
+		else if (nCore == 2)
+		{
+			FbSetMair ();
 			TvWorkerRun ();
 		}
 	}
@@ -40,14 +48,19 @@ CKernel::CKernel (void)
 	m_bQuiet (TRUE),		// black screen while booting; text only on errors
 	m_nLines (0),
 	m_nRepeat (0),
-	m_pGame (0),
-	m_nGameSize (0),
+	m_pZip (0),
+	m_nZipSize (0),
+	m_pParentZip (0),
+	m_nParentZipSize (0),
 	m_pGames (0),
 	m_nGames (0),
 	m_nLoaded (-1),
 	m_nShots (0),
+	m_nDsw (0xFFFF),
 	m_nFilter (0),
 	m_bHVS (TRUE),
+	m_bMultiCore (TRUE),
+	m_bFilterAllowed (TRUE),
 	m_bVSync (TRUE),
 	m_bStatusOn (FALSE),
 	m_nClearStatus (0)
@@ -67,20 +80,9 @@ boolean CKernel::Initialize (void)
 
 	m_Serial.Initialize (115200);
 
-	if (!m_Logger.Initialize (&m_LogSink))
-	{
-		return FALSE;
-	}
-	if (!m_Interrupt.Initialize ())
-	{
-		return FALSE;
-	}
-	if (!m_Timer.Initialize ())
-	{
-		return FALSE;
-	}
-
-	return TRUE;
+	return    m_Logger.Initialize (&m_LogSink)
+	       && m_Interrupt.Initialize ()
+	       && m_Timer.Initialize ();
 }
 
 TShutdownMode CKernel::Run (void)
@@ -91,7 +93,7 @@ TShutdownMode CKernel::Run (void)
 	}
 
 	char Line[180];
-	Log ("nes-pi - bare metal NES emulator", COLOR_TITLE);
+	Log ("s16-pi - bare metal SEGA System 16 emulator", COLOR_TITLE);
 	snprintf (Line, sizeof Line, "Version %s, built %s %s", PROJECT_VERSION, __DATE__, __TIME__);
 	Log (Line, COLOR_DIM);
 
@@ -115,21 +117,27 @@ TShutdownMode CKernel::Run (void)
 		Fatal (PROJECT_ERR_SD, "cannot read the SD card file system");
 	}
 	m_bSDOK = TRUE;
-	f_mkdir (NESPI_DIR);
 	f_mkdir (SAVE_DIR);
 	f_mkdir (SHOT_DIR);
+	FrameSetup (&m_Video);
 	LoadConfig ();
-	m_nFilter = g_Pic.nTvMode == NTSC_OFF && g_Pic.bTvScanlines ? FILTER_SCAN_LIGHT : FILTER_NONE;	// TV FILTER decides
+	// the scanlines need a Pi 4, or a Pi 3 with core 1 drawing the lines
+	m_bFilterAllowed = pInfo->GetModelMajor () >= 4 || m_bMultiCore;
+	if (!m_bFilterAllowed)
+	{
+		m_nFilter = FILTER_NONE;
+	}
+	StartCores ();
 
-	m_pUI = new CUI;		// no console font on the NES: the built-in one
+	m_pUI = new CUI;
 
 	// games
 	ScanGames ();
-	snprintf (Line, sizeof Line, "Games found: %u", m_nGames);
+	snprintf (Line, sizeof Line, "Games found: %u (of the %d sets s16-pi knows)", m_nGames, s16_num_games ());
 	Log (Line, m_nGames ? COLOR_OK : COLOR_ERR);
 	if (m_nGames == 0)
 	{
-		Fatal (PROJECT_ERR_GAME, "no .nes file in the nespi folder");
+		Fatal (PROJECT_ERR_GAME, "no System 16 game (MAME .zip set) in the s16pi folder");
 	}
 
 	// USB and audio
@@ -144,20 +152,22 @@ TShutdownMode CKernel::Run (void)
 
 	if (m_Audio.Initialize (&m_Interrupt))
 	{
-		Log ("Audio HDMI: OK (48 kHz)", COLOR_OK);
+		Log ("HDMI audio: OK (48 kHz)", COLOR_OK);
 	}
 	else
 	{
 		Log ("HDMI audio: not available, playing without sound", COLOR_ERR);
 	}
 
-	SetupCoreOnce ();
-
 	unsigned nSel = LastPlayed ();
 
 	FILINFO Info;
-	boolean bBench = f_stat (BENCH_FLAG, &Info) == FR_OK;
-	if (bBench)
+	if (f_stat (MCTEST_FLAG, &Info) == FR_OK)
+	{
+		McTest (nSel);
+		CTimer::SimpleMsDelay (8000);
+	}
+	if (f_stat (BENCH_FLAG, &Info) == FR_OK)
 	{
 		if (LoadGame (nSel))
 		{
@@ -169,6 +179,7 @@ TShutdownMode CKernel::Run (void)
 
 	// from here on the screen belongs to the UI
 	ApplyVideoMode ();
+	FrameLinesToScreen (TRUE);
 	SetupBeamRacing ();
 	SaveLog ();
 	m_bQuiet = TRUE;
@@ -184,7 +195,7 @@ TShutdownMode CKernel::Run (void)
 
 		if (m_nLoaded != (int) nSel && !LoadGame (nSel))
 		{
-			m_pUI->DrawMessage ("CANNOT LOAD GAME", 0, "SEE nespi/LOG.TXT");
+			m_pUI->DrawMessage ("CANNOT LOAD GAME", 0, "SEE s16pi/LOG.TXT");
 			SaveLog ();
 			for (unsigned i = 0; i < 180; i++)
 			{
@@ -200,22 +211,40 @@ TShutdownMode CKernel::Run (void)
 	return ShutdownHalt;
 }
 
-// starts core 1 for the TV filter (once); FALSE: it is not running
-boolean CKernel::StartCores (void)
+// cores 1 and 2, unless multicore=off; single core if core 1 does not answer
+void CKernel::StartCores (void)
 {
-	CTvFilterCore *pCores = new CTvFilterCore;
-	if (pCores == 0 || !pCores->Initialize ())
+	if (!m_bMultiCore)
 	{
-		return FALSE;
+		Log ("Multicore: off (multicore=off), single core", COLOR_TEXT);
+		return;
 	}
+	CVideoCore *pVideoCore = new CVideoCore;
+	boolean bStarted = pVideoCore && pVideoCore->Initialize ();
 	unsigned nWait = CTimer::GetClockTicks ();
-	while (!TvWorkerAlive () && CTimer::GetClockTicks () - nWait < 200000)
+	while (bStarted && !McAlive () && CTimer::GetClockTicks () - nWait < 200000)
 	{
 	}
-	return TvWorkerAlive ();
+	if (bStarted && McAlive ())
+	{
+		Log ("Multicore: video lines drawn on core 1", COLOR_TEXT);
+		while (!TvWorkerAlive () && CTimer::GetClockTicks () - nWait < 200000)
+		{
+		}
+		Log (TvWorkerAlive () ? "Multicore: core 2 ready for COMPOSITE"
+				      : "Multicore: core 2 not running, COMPOSITE on core 1",
+		     TvWorkerAlive () ? COLOR_TEXT : COLOR_ERR);
+	}
+	else
+	{
+		Log (bStarted ? "Multicore: core 1 started but is not running, single core"
+			      : "Multicore: core 1 did not start, single core", COLOR_ERR);
+		m_bMultiCore = FALSE;
+	}
+	SaveLog ();
 }
 
-// the game played last (LAST.TXT), or the first one
+// the game played last (LAST.TXT), selected in the list
 unsigned CKernel::LastPlayed (void)
 {
 	unsigned nSel = 0;
@@ -241,7 +270,7 @@ unsigned CKernel::LastPlayed (void)
 void CKernel::PowerOff (void)
 {
 	Log ("Power off: saving data and halting", COLOR_TITLE);
-	UnloadGame ();			// the cartridge's battery RAM goes to the card here
+	SaveGameData ();
 	SaveLog ();
 	f_mount (0, "SD:", 0);
 	m_bSDOK = FALSE;

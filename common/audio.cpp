@@ -2,7 +2,7 @@
  * HDMI audio output
  *
  * About 800 stereo frames at 48 kHz arrive per emulated frame (from the
- * resampler in kernel.cpp). The display and the HDMI audio clock are not exactly locked, so
+ * project's frame code). The display and the HDMI audio clock are not exactly locked, so
  * the queue level is kept around TARGET by stretching or shrinking each block
  * by a few samples (linear interpolation, inaudible).
  */
@@ -77,7 +77,7 @@ void CAudioOut::WriteFrame (const s16 *pSamples, unsigned nFrames)
 	m_nAdjust += nDelta;
 
 	unsigned nOut = nFrames + nDelta;
-	if (nDelta == 0)
+	if (nDelta == 0 || nFrames < 16)	// a very short block goes out as it is
 	{
 		m_pSound->Write (pSamples, nFrames * 4);
 		return;

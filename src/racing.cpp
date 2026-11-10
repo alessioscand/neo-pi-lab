@@ -1,8 +1,9 @@
 /*
- * nes-pi - beam racing state shared by the game loop (see racing.h)
+ * s16-pi - beam racing state shared by the game loop (see racing.h)
  */
 #include "racing.h"
 #include "kernel.h"
+#include "mcline.h"
 #include "smp.h"
 
 TRacing g_Race = {-1, FALSE, FALSE, 0, 0, 0};
@@ -26,8 +27,23 @@ static u64 ReadTicks (void)
 	return Ticks ();
 }
 
-void RaceRowNext (unsigned nRow)
+void RaceCreate (void)
 {
+	if (g_Race.pRaster == 0)
+	{
+		g_Race.pRaster = new CRaster (HvsRead, ReadTicks, TicksFreq (), HVS_GEN);
+		g_Race.pRacer = new CBeamRacer (g_Race.pRaster);
+	}
+}
+
+// wait for the row's turn
+void RaceLineHook (void *, int nLine)
+{
+	if (nLine < S16_FIRST_LINE || nLine >= S16_FIRST_LINE + GAME_H)
+	{
+		return;
+	}
+	unsigned nRow = (unsigned) (nLine - S16_FIRST_LINE);
 	u64 nNow = Ticks ();
 	g_Race.pRacer->RowArrived (nRow, nNow);
 	u64 nRelease = g_Race.pRacer->RowRelease (nRow);
@@ -47,25 +63,25 @@ void RaceRowNext (unsigned nRow)
 	}
 }
 
-// the row is in the framebuffer being shown
 void RaceRowDone (unsigned nRow)
 {
 	__asm__ volatile ("dsb st" ::: "memory");	// the pixels have left the CPU
 	g_Race.pRacer->RowDone (nRow, Ticks ());
 }
 
-// find the HVS channel and measure it (about 0.7 s)
+// Pi 3 and 4 with multicore: find the HVS channel and measure it (about 0.7 s)
 void CKernel::SetupBeamRacing (void)
 {
 	g_Race.bReady = FALSE;
-	if (g_Race.pRaster == 0)
-	{
-		g_Race.pRaster = new CRaster (HvsRead, ReadTicks, TicksFreq (), HVS_GEN);
-		g_Race.pRacer = new CBeamRacer (g_Race.pRaster);
-	}
+	RaceCreate ();
 	if (g_Race.nCfg == 0)
 	{
 		Log ("Beam racing: off (beamracing=off)", COLOR_TEXT);
+		return;
+	}
+	if (!m_bMultiCore || !McAlive () || McFailed ())
+	{
+		Log ("Beam racing: needs multicore, off", COLOR_TEXT);
 		return;
 	}
 	static char Report[600];

@@ -1,5 +1,5 @@
 /*
- * nes-pi - host test of the beam racing logic (common/raster.cpp, common/race.cpp)
+ * Host test of the beam racing logic (common/raster.cpp, common/race.cpp)
  * against a simulated HVS and a simulated emulator.
  *
  *   g++ -O2 -DPROJECT_HOST -I common -I src -o race_sim test/race_sim.cpp
@@ -102,7 +102,7 @@ int main (int argc, char **argv)
 
 	CBeamRacer Race (&R);
 	const unsigned GameY = 23, M = 1, K = 4;	// 1080p: 480x270 framebuffer, 4x HVS
-	Race.SetGeometry (GameY, M, K, 224);
+	Race.SetGeometry (GameY, M, K);
 	Race.Restart ();
 
 	unsigned nFrames = (unsigned) (nSecs * 60), nLateTruth = 0, nEarlyTruth = 0;
@@ -118,7 +118,7 @@ int main (int argc, char **argv)
 
 		// vertical blank lines 248..263, 0..23 (40 lines)
 		for (int i = 0; i < 40; i++) g_Now += nEmuLine * (TPS / 1e6) * (0.8 + 0.4 * Rand ());
-		for (unsigned r = 0; r < 224; r++)
+		for (unsigned r = 0; r < RACE_ROWS; r++)
 		{
 			u64 tRel = Race.RowRelease (r);
 			Race.RowArrived (r, R.Ticks ());

@@ -1,17 +1,17 @@
 #
-# nes-pi Makefile (generated per target by build.sh)
+# s16-pi Makefile (generated per target by build.sh)
 #
 CIRCLEHOME = @CIRCLEHOME@
 
-OBJS	= main.o kernel.o console.o games.o settings.o menus.o gameloop.o bench.o \
-	  report.o racing.o frame.o \
-	  video.o ui.o fontdata.o ziphelp.o nes_sys.o miniz.o composite.o \
-	  audio.o input.o raster.o race.o profile.o fbmap.o stats.o pacing.o tvcore.o
+OBJS	= main.o kernel.o console.o games.o hiscore.o settings.o menus.o gameloop.o bench.o \
+	  report.o racing.o frame.o mcline.o \
+	  video.o ui.o fontdata.o fontlist.o ziphelp.o s16_sys.o \
+	  audio.o input.o raster.o race.o profile.o fbmap.o composite.o tvcore.o stats.o pacing.o miniz.o
 
-# Nestopia (C++ with exceptions and the standard library) is built apart,
-# with its own flags, into libnst.a: Circle's rules (no exceptions, no
-# standard C++ library) apply to everything else
-LIBS	= libnst.a \
+# The System 16 core (C++20 with the standard library) is built apart, with its own
+# flags, into libs16.a: Circle's rules (no standard C++ library) apply to
+# everything else, which sees only the C interface s16_api.h
+LIBS	= libs16.a \
 	  $(CIRCLEHOME)/addon/fatfs/libfatfs.a \
 	  $(CIRCLEHOME)/addon/SDCard/libsdcard.a \
 	  $(CIRCLEHOME)/lib/usb/libusb.a \
@@ -20,7 +20,7 @@ LIBS	= libnst.a \
 	  $(CIRCLEHOME)/lib/fs/libfs.a \
 	  $(CIRCLEHOME)/lib/libcircle.a
 
-EXTRAINCLUDE = -I @SRC@ -I @COMMON@ -I @MINIZ@ -isystem @SNESNTSC@
+EXTRAINCLUDE = -I @SRC@ -I @COMMON@ -I @CORE@ -isystem @MINIZ@ -isystem @NTSC@
 
 C_STANDARD = -std=gnu11
 OPTIMIZE = -O2
@@ -30,28 +30,27 @@ CFLAGS += -fno-math-errno -Wextra -Wshadow -Wno-unused-parameter	# Circle's head
 
 include $(CIRCLEHOME)/Rules.mk
 
-# ---- Nestopia --------------------------------------------------------------
-NSTDIR	 = nst
-NSTSRC	:= $(shell find $(NSTDIR)/core -name '*.cpp' ! -name NstZlib.cpp) nes_core.cpp
-NSTOBJ	:= $(NSTSRC:.cpp=.nst.o)
-NSTFLAGS = $(ARCH) -O3 -std=gnu++11 -fexceptions -fno-math-errno \
-	   -ffunction-sections -fdata-sections -w \
-	   -DNDEBUG -DNST_NO_ZLIB -DNST_NO_HQ2X -DNST_NO_2XSAI -DNST_NO_SCALEX -DNST_NO_XBR \
-	   -I $(NSTDIR)/core -I $(NSTDIR)/core/api -I $(NSTDIR) -I @SRC@ -I @COMMON@
+# ---- the core ---------------------------------------------------------------
+# build.sh copies the core's sources here as <name>.core.cpp
+COREOBJ	:= $(patsubst %.core.cpp,%.core.o,$(wildcard *.core.cpp))
+COREOPT	?= -O3
+COREFLAGS = $(ARCH) $(COREOPT) -std=gnu++20 -fno-exceptions -fno-rtti -fno-math-errno \
+	    -ffunction-sections -fdata-sections $(COREWARN) -DNDEBUG -I @CORE@
 
-%.nst.o: %.cpp
+COREWARN = -w				# sources by others, as they are
+s16%.core.o: COREWARN = -Wall -Wextra -Wshadow	# ours
+
+%.core.o: %.core.cpp
 	@echo "  CPP   $@"
-	@$(CPP) $(NSTFLAGS) -c -o $@ $<
+	@$(CPP) $(COREFLAGS) -c -o $@ $<
 
-libnst.a: $(NSTOBJ)
+libs16.a: $(COREOBJ)
 	@echo "  AR    $@"
 	@rm -f $@
-	@$(AR) cr $@ $(NSTOBJ)
+	@$(AR) cr $@ $(COREOBJ)
 
-# the C++ runtime from the toolchain: standard library, exception support,
-# newlib (its system calls are in nes_sys.c); the unwinder is in libgcc.a,
-# which Circle links already; crtbegin/crtend
-# register the exception tables at start-up (as Circle does with STDLIB_SUPPORT=3)
+# the C++ runtime from the toolchain: standard library and newlib (its system
+# calls are in s16_sys.c); crtbegin/crtend run the core's static constructors
 EXTRALIBS += "$(shell $(CPP) $(ARCH) -print-file-name=libstdc++.a)" \
 	     "$(shell $(CPP) $(ARCH) -print-file-name=libsupc++.a)" \
 	     "$(shell $(CPP) $(ARCH) -print-file-name=libm.a)" \

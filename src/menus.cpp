@@ -1,30 +1,15 @@
 /*
- * nes-pi - the menus: game list, options, controls set-up, power off, credits
+ * s16-pi - menus: the game list, OPTIONS, DIP SWITCHES, CONTROLS, power off,
+ * credits
  */
 #include "kernel.h"
 #include "frame.h"
-
-// the NES picture in the menus' layout (304x224): 8 lines off the top and
-// bottom (as most TVs did), centred, for the darkened copy behind the menus
-void CKernel::SnapshotForUI (void)
-{
-	static u32 Buf[UI_SRC_PITCH * UI_SRC_LINES];
-	memset (Buf, 0, sizeof Buf);
-	// the game behind the menus is sharp too, like the menus (whatever the TV filter)
-	for (unsigned y = 0; y < UI_H; y++)
-	{
-		const u32 *s = &g_VideoBuf[(y + 8) * NES_W];
-		u32 *d = &Buf[(y + UI_SRC_Y) * UI_SRC_PITCH + UI_SRC_X + (UI_W - NES_W) / 2];
-		memcpy (d, s, NES_W * 4);
-	}
-	m_pUI->SnapshotGame (Buf);
-}
+#include "s16_api.h"
+#include <circle/machineinfo.h>
 
 void CKernel::ShowUIFrame (boolean bWait, const char *pTopMessage)
 {
-	m_Video.SetRacing (FALSE);
-	m_Video.SetSource (FrameUISource ());
-	m_Video.DrawGame (FrameUIBuffer (m_pUI->GetBuffer ()), TRUE);	// with the TV filter, like the game
+	FrameDrawPicture (m_pUI->GetBuffer ());
 	if (pTopMessage && pTopMessage[0])
 	{
 		// in the black band above the picture, like the in-game messages
@@ -36,6 +21,8 @@ void CKernel::ShowUIFrame (boolean bWait, const char *pTopMessage)
 		m_Video.DrawBandText (TRUE, 0, 0);	// no status line or message over menus
 	}
 	m_Video.DrawBandText (FALSE, 0, 0);
+	m_Video.DrawSideText (FALSE, 0, 0);	// no-op without side columns
+	m_Video.DrawSideText (TRUE, 0, 0);
 	m_Video.Flip ();
 	if (!bWait)
 	{
@@ -57,6 +44,7 @@ unsigned CKernel::RunList (unsigned nSel)
 	unsigned nRepeat = 0;
 	unsigned nFrame = 0;
 	unsigned nTicks = 0;		// frames since the selection changed
+	unsigned nShown = nSel;
 
 	while (1)
 	{
@@ -91,12 +79,10 @@ unsigned CKernel::RunList (unsigned nSel)
 		{
 			nRepeat = 0;
 		}
-		unsigned nOld = nSel;
 		if ((nMove & BTN_UP) && nSel > 0)			nSel--;
 		if ((nMove & BTN_DOWN) && nSel + 1 < m_nGames)		nSel++;
 		if (nNew & BTN_LEFT)	nSel = nSel >= 8 ? nSel - 8 : 0;
 		if (nNew & BTN_RIGHT)	nSel = nSel + 8 < m_nGames ? nSel + 8 : m_nGames - 1;
-		nTicks = nSel == nOld ? nTicks + 1 : 0;
 
 		if (nNew & (BTN_A | BTN_START))
 		{
@@ -110,6 +96,8 @@ unsigned CKernel::RunList (unsigned nSel)
 		nPrev = n;
 
 		const char *pMsg = m_pInput->GetPadCount () == 0 ? "CONNECT A USB GAMEPAD" : "";
+		nTicks = nSel == nShown ? nTicks + 1 : 0;
+		nShown = nSel;
 		m_pUI->DrawList (m_pGames, m_nGames, nSel, "", m_nLoaded >= 0, nTicks);
 		ShowUIFrame (TRUE, pMsg);
 	}
@@ -117,14 +105,11 @@ unsigned CKernel::RunList (unsigned nSel)
 
 void CKernel::RunSystemMenu (void)
 {
-	enum { SmTv, SmPalette, SmSprites, SmControls, SmPower, SmCount };
+	enum { SmFilter, SmControls, SmPower, SmCount };
 
 	unsigned nSel = 0;
 	u32 nPrev = ~0u;
-	int nOldPalette = g_Pic.nPalette;
-	int nOldTv = g_Pic.nTvMode;
-	boolean bOldScan = g_Pic.bTvScanlines;
-	boolean bOldSprites = g_Pic.bUnlimSprites;
+	unsigned nOldFilter = m_nFilter;
 	const char *pMsg = "";
 	unsigned nFrame = 0;
 
@@ -141,7 +126,7 @@ void CKernel::RunSystemMenu (void)
 	}
 	Model[nLen] = '\0';
 	char Footer[48];
-	snprintf (Footer, sizeof Footer, "NES-PI " PROJECT_VERSION "  %s", Model);
+	snprintf (Footer, sizeof Footer, "S16-PI " PROJECT_VERSION "  %s", Model);
 
 	while (1)
 	{
@@ -154,51 +139,24 @@ void CKernel::RunSystemMenu (void)
 		u32 nNew = nPrev == ~0u ? 0 : (n & ~nPrev);
 		nPrev = n;
 
-		if (nNew & BTN_UP)
-		{
-			nSel = (nSel + SmCount - 1) % SmCount;
-			pMsg = "";
-		}
-		if (nNew & BTN_DOWN)
-		{
-			nSel = (nSel + 1) % SmCount;
-			pMsg = "";
-		}
+		if (nNew & BTN_UP)	{ nSel = (nSel + SmCount - 1) % SmCount; pMsg = ""; }
+		if (nNew & BTN_DOWN)	{ nSel = (nSel + 1) % SmCount; pMsg = ""; }
 		int nDir = (nNew & (BTN_A | BTN_RIGHT)) ? 1 : ((nNew & BTN_LEFT) ? -1 : 0);
 
 		if (nDir != 0)
 		{
 			switch (nSel)
 			{
-			case SmTv:
-			{
-				// OFF (sharp pixels) -> RGB (light scanlines) -> S-VIDEO ->
-				// COMPOSITE -> RF; index 0 = OFF, then the NTSC modes
-				static const int Order[5] = {NTSC_OFF, NTSC_OFF, NTSC_SVIDEO, NTSC_COMPOSITE, NTSC_RF};
-				unsigned i = g_Pic.nTvMode == NTSC_OFF ? (g_Pic.bTvScanlines ? 1 : 0)
-					   : g_Pic.nTvMode == NTSC_SVIDEO ? 2 : g_Pic.nTvMode == NTSC_COMPOSITE ? 3 : 4;
-				i = (i + 5 + nDir) % 5;
-				g_Pic.nTvMode = Order[i];
-				g_Pic.bTvScanlines = i != 0;
-				SetTvMode ();
-				break;
-			}
-
-			case SmPalette:
-			{
-				int nCount = g_Pic.nCustomPal ? 4 : 3;	// CUSTOM only with nespi/palette.pal
-				g_Pic.nPalette = (g_Pic.nPalette + nCount + nDir) % nCount;
-				ApplyPalette ();
-				if (m_nLoaded >= 0)
+			case SmFilter:
+				if (m_bFilterAllowed)
 				{
-					SnapshotForUI ();		// the paused game in the new colours
+					m_nFilter = (m_nFilter + FILTER_COUNT + (unsigned) nDir) % FILTER_COUNT;
+					ApplyVideoMode ();
 				}
-				break;
-			}
-
-			case SmSprites:
-				g_Pic.bUnlimSprites = !g_Pic.bUnlimSprites;
-				nes_set_unlimited_sprites (g_Pic.bUnlimSprites);
+				else if (nNew & BTN_A)
+				{
+					pMsg = "NEEDS MULTICORE";
+				}
 				break;
 
 			case SmControls:
@@ -232,7 +190,7 @@ void CKernel::RunSystemMenu (void)
 			break;
 		}
 
-		static const char *Labels[SmCount] = {"TV FILTER", "PALETTE", "SPRITE FLICKER", "CONTROLS", "POWER OFF"};
+		static const char *Labels[SmCount] = {"SCANLINES", "CONTROLS", "POWER OFF"};
 		TMenuItem Items[SmCount];
 		for (unsigned i = 0; i < SmCount; i++)
 		{
@@ -240,25 +198,149 @@ void CKernel::RunSystemMenu (void)
 			Items[i].pValue = 0;
 			Items[i].bDisabled = FALSE;
 		}
-		static const char *TvLabels[4] = {"RGB", "S-VIDEO", "COMPOSITE", "RF"};
-		Items[SmTv].pValue = g_Pic.nTvMode == NTSC_OFF && !g_Pic.bTvScanlines ? "OFF" : TvLabels[g_Pic.nTvMode & 3];
-		static const char *PaletteLabels[4] = {"NESTOPIA", "CONSUMER", "SONY TV", "CUSTOM"};
-		Items[SmPalette].pValue = PaletteLabels[g_Pic.nPalette & 3];
-		Items[SmSprites].pValue = g_Pic.bUnlimSprites ? "REDUCED" : "ORIGINAL";
+		static const char *FilterLabels[FILTER_COUNT] = {"OFF", "LIGHT", "MEDIUM", "STRONG", "COMPOSITE"};
+		// not allowed only on a Pi 3 with multicore=off
+		Items[SmFilter].pValue = m_bFilterAllowed ? FilterLabels[m_nFilter] : "MULTICORE OFF";
+		Items[SmFilter].bDisabled = !m_bFilterAllowed;
 
+		const char *pShow = pMsg;
+		u32 nShowColor = UI_VALUE;
+		if (pShow[0])
+		{
+			nShowColor = UI_ERR;
+		}
 		static const TButtonHint Hints[2] = {{'A', "CHANGE"}, {'B', "BACK"}};
-		m_pUI->DrawPanelMenu (m_nLoaded >= 0, "OPTIONS", Items, SmCount, nSel, pMsg, UI_VALUE,
+		m_pUI->DrawPanelMenu (m_nLoaded >= 0, "OPTIONS", Items, SmCount, nSel, pShow, nShowColor,
 				      Hints, 2, Footer);
 		ShowUIFrame ();
 	}
 
-	if (g_Pic.nPalette != nOldPalette || g_Pic.bUnlimSprites != bOldSprites
-	    || g_Pic.nTvMode != nOldTv || g_Pic.bTvScanlines != bOldScan)
+	if (m_nFilter != nOldFilter)
 	{
 		SaveConfig ();
-		char Line[140];
-		snprintf (Line, sizeof Line, "New settings: TV filter %s, palette %s, sprites %s",
-			  TvName (g_Pic.nTvMode), PaletteName (g_Pic.nPalette), g_Pic.bUnlimSprites ? "unlimited" : "8 per line");
+		char Line[120];
+		snprintf (Line, sizeof Line, "New settings: filter %s", FilterName (m_nFilter));
+		Log (Line, COLOR_TEXT);
+	}
+}
+
+// DIP SWITCHES (in-game menu): the game's own switches, with MAME's names and
+// settings. A changes the selected one (left/right too), B goes back. They
+// reach the board at once; many games only read them when they start, hence
+// the note. Saved per game in saves/<game>.dip.
+void CKernel::RunDipMenu (void)
+{
+	if (m_nLoaded < 0)
+	{
+		return;
+	}
+	const int nGame = m_pGames[m_nLoaded].nGame;
+	enum { MaxItems = 24, Window = 10 };	// up to 10 on screen, the list scrolls
+	unsigned nSel = 0, nFirst = 0;
+	u32 nPrev = ~0u;
+	boolean bChanged = FALSE;
+	const u16 nOldDsw = m_nDsw;
+
+	while (1)
+	{
+		// the switches shown now (coin A/B or coinage, as the coin mode says);
+		// the unknown ones, the screen flip and the service mode are left out
+		int Dips[MaxItems];
+		unsigned nItems = 0;
+		const int nCount = s16_dip_count (nGame);
+		for (int d = 0; d < nCount && nItems < MaxItems; d++)
+		{
+			TS16Dip D;
+			s16_dip_get (nGame, d, &D);
+			if (IsHiddenDip (D.pName))
+			{
+				continue;
+			}
+			if (D.nCondOp)
+			{
+				boolean bEq = (m_nDsw & D.nCondMask) == D.nCondValue;
+				if ((D.nCondOp == 1) != bEq)
+				{
+					continue;
+				}
+			}
+			Dips[nItems++] = d;
+		}
+		if (nItems == 0)
+		{
+			break;
+		}
+		if (nSel >= nItems) nSel = nItems - 1;
+
+		m_pInput->UpdateDevices ();
+		u32 n = m_pInput->GetAny ();
+		u32 nNew = nPrev == ~0u ? 0 : (n & ~nPrev);
+		nPrev = n;
+		if (nNew & BTN_UP)	nSel = (nSel + nItems - 1) % nItems;
+		if (nNew & BTN_DOWN)	nSel = (nSel + 1) % nItems;
+		int nDir = (nNew & (BTN_A | BTN_RIGHT)) ? 1 : ((nNew & BTN_LEFT) ? -1 : 0);
+		if (nNew & BTN_B)
+		{
+			break;
+		}
+
+		// value of each switch, as text
+		static char Values[MaxItems][32];
+		TMenuItem Items[MaxItems];
+		static char Labels[MaxItems][32];
+		for (unsigned i = 0; i < nItems; i++)
+		{
+			TS16Dip D;
+			s16_dip_get (nGame, Dips[i], &D);
+			u16 nCur = m_nDsw & D.nMask;
+			int nIdx = 0;
+			for (int s = 0; s < D.nSettings; s++)
+			{
+				u16 v;
+				s16_dip_setting_name (nGame, Dips[i], s, &v);
+				if (v == nCur) nIdx = s;
+			}
+			if (i == nSel && nDir)
+			{
+				nIdx = (nIdx + D.nSettings + nDir) % D.nSettings;
+				u16 v;
+				s16_dip_setting_name (nGame, Dips[i], nIdx, &v);
+				m_nDsw = (u16) ((m_nDsw & ~D.nMask) | v);
+				s16_set_dsw (m_nDsw);
+				bChanged = TRUE;
+			}
+			strncpy (Labels[i], D.pName, sizeof Labels[i] - 1);
+			Labels[i][sizeof Labels[i] - 1] = '\0';
+			const char *pVal = s16_dip_setting_name (nGame, Dips[i], nIdx, 0);
+			// label + value must fit in the wide panel (29 characters with the gap)
+			size_t nLabel = strlen (Labels[i]);
+			size_t nRoom = nLabel < 28 ? 29 - nLabel : 1;
+			strncpy (Values[i], pVal ? pVal : "?", sizeof Values[i] - 1);
+			Values[i][sizeof Values[i] - 1] = '\0';
+			if (strlen (Values[i]) > nRoom) Values[i][nRoom] = '\0';
+			Items[i].pLabel = Labels[i];
+			Items[i].pValue = Values[i];
+			Items[i].bDisabled = FALSE;
+		}
+
+		TS16Dip S;
+		s16_dip_get (nGame, Dips[nSel], &S);
+		const char *pMsg = bChanged ? "SOME APPLY AFTER RESET" : "";
+		if (nSel < nFirst) nFirst = nSel;
+		if (nSel >= nFirst + Window) nFirst = nSel - Window + 1;
+		if (nFirst + Window > nItems) nFirst = nItems > Window ? nItems - Window : 0;
+		unsigned nShown = nItems - nFirst < Window ? nItems - nFirst : (unsigned) Window;
+		static const TButtonHint Hints[2] = {{'A', "CHANGE"}, {'B', "BACK"}};
+		m_pUI->DrawPanelMenu (TRUE, "DIP SWITCHES", Items + nFirst, nShown, nSel - nFirst, pMsg, UI_VALUE,
+				      Hints, 2, S.pLocation, TRUE);
+		ShowUIFrame ();
+	}
+
+	if (m_nDsw != nOldDsw)
+	{
+		SaveDips ();
+		char Line[80];
+		snprintf (Line, sizeof Line, "  DIP switches: %04X", m_nDsw);
 		Log (Line, COLOR_TEXT);
 	}
 }
@@ -304,22 +386,23 @@ int CKernel::ChoosePad (void)
 	return -1;
 }
 
-// Asks for A B START SELECT in turn on one pad (directions are automatic),
-// then saves on its own. A button already used is ignored; Esc on the
-// keyboard cancels. (pads.cfg keeps the C and D slots of the shared input
-// code: they stay unset here, and are ignored if an older set-up has them.)
+// Asks for A B C D SELECT START in turn on one pad (directions are
+// automatic), then saves on its own. A button already used is ignored; Esc on
+// the keyboard cancels.
 boolean CKernel::RunMapping (unsigned nSlot, boolean bOverGame)
 {
-	static const char *Names[4] = {"A", "B", "START", "SELECT"};
-	static const unsigned Slot[4] = {MAP_FIRST_BUTTON + 0, MAP_FIRST_BUTTON + 1,
-					 MAP_FIRST_BUTTON + 4, MAP_FIRST_BUTTON + 5};
-	const unsigned nSteps = 4;
+	// slots in the order of the logical bits: A B C D START SELECT;
+	// asked in the order A B C D SELECT START
+	enum { Slots = 6 };
+	static const char *Names[Slots] = {"A", "B", "C", "D", "START", "SELECT / COIN"};
+	static const unsigned SlotOfStep[Slots] = {0, 1, 2, 3, 5, 4};
+	const unsigned nSteps = MAP_COUNT - MAP_FIRST_BUTTON;
 
 	TBind Binds[MAP_COUNT];
 	memset (Binds, 0, sizeof Binds);
-	static char Values[4][16];
-	const char *pValues[4];
-	for (unsigned i = 0; i < 4; i++)
+	static char Values[Slots][16];
+	const char *pValues[Slots];
+	for (unsigned i = 0; i < Slots; i++)
 	{
 		Values[i][0] = '\0';
 		pValues[i] = Values[i];
@@ -370,28 +453,31 @@ boolean CKernel::RunMapping (unsigned nSlot, boolean bOverGame)
 			int nButton = m_pInput->CaptureButton (nSlot);
 			if (nButton >= 0)
 			{
+				const unsigned nCur = SlotOfStep[nStep];
 				boolean bUsed = FALSE;
 				for (unsigned i = 0; i < nStep; i++)
 				{
-					if (Binds[Slot[i]].nIndex == (u8) nButton)
+					const TBind &rB = Binds[MAP_FIRST_BUTTON + SlotOfStep[i]];
+					if (rB.nType == BindButton && rB.nIndex == (u8) nButton)
 					{
 						bUsed = TRUE;
 					}
 				}
 				if (!bUsed)
 				{
-					TBind &B = Binds[Slot[nStep]];
+					TBind &B = Binds[MAP_FIRST_BUTTON + nCur];
 					B.nType = BindButton;
 					B.nIndex = (u8) nButton;
 					B.nValue = 0;
-					CInput::DescribeBind (B, Values[nStep], sizeof Values[nStep]);
+					CInput::DescribeBind (B, Values[nCur], sizeof Values[nCur]);
 					nStep++;
 				}
 				bWaitRelease = TRUE;
 			}
 		}
 
-		m_pUI->DrawMapping (bOverGame, Title, (int) nStep, pValues, Footer);
+		m_pUI->DrawMapping (bOverGame, Title, nStep < nSteps ? (int) SlotOfStep[nStep] : Slots,
+				    pValues, Footer);
 		ShowUIFrame ();
 	}
 
@@ -399,16 +485,17 @@ boolean CKernel::RunMapping (unsigned nSlot, boolean bOverGame)
 	SavePads ();
 	for (unsigned i = 0; i < nSteps; i++)
 	{
-		snprintf (Line, sizeof Line, "  %s = %s", Names[i], Values[i]);
+		unsigned k = SlotOfStep[i];
+		snprintf (Line, sizeof Line, "  %s = %s", Names[k], Values[k]);
 		Log (Line, COLOR_TEXT);
 	}
-	Log ("  controls saved to nespi/pads.cfg", COLOR_TEXT);
+	Log ("  controls saved to s16pi/pads.cfg", COLOR_TEXT);
 	SaveLog ();
 
 	// "SAVED" for one second
 	for (unsigned f = 0; f < 60; f++)
 	{
-		m_pUI->DrawMapping (bOverGame, Title, (int) nSteps, pValues, Footer);
+		m_pUI->DrawMapping (bOverGame, Title, Slots, pValues, Footer);
 		ShowUIFrame ();
 	}
 	return TRUE;
@@ -417,7 +504,7 @@ boolean CKernel::RunMapping (unsigned nSlot, boolean bOverGame)
 boolean CKernel::PowerOffCountdown (void)
 {
 	// 3 seconds, B cancels; drawn over whatever the UI buffer shows
-	static u32 Saved[UI_SRC_PITCH * UI_SRC_LINES];
+	static u32 Saved[GAME_SRC_PITCH * GAME_SRC_LINES];
 	memcpy (Saved, m_pUI->GetBuffer (), sizeof Saved);
 	u32 nPrev = ~0u;
 	for (unsigned f = 0; f < 180; f++)

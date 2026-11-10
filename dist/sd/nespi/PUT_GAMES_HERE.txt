@@ -1,2 +1,0 @@
-Put your NES games (.nes files, NTSC) in this folder.
-No BIOS is needed.

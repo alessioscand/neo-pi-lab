@@ -2,22 +2,18 @@
 build/
 /toolchain
 /circle-*
-firmware/
 *.o
 *.d
 *.a
 *.img
 *.elf
 *.map
+*.ppm
+*.wav
 # never commit games or user data
 *.zip
-*.nes
-*.sav
-*.st1
-dist/sd/nespi/*
-!dist/sd/nespi/PUT_GAMES_HERE.txt
-# Raspberry Pi firmware: copied into dist/sd/ when building (see BUILD.md)
-dist/sd/*.bin
-dist/sd/*.dat
-dist/sd/*.dtb
-dist/sd/LICENCE.broadcom
+dist/sd/s16pi/*
+!dist/sd/s16pi/PUT_GAMES_HERE.txt
+!dist/sd/s16pi/list.txt
+# the Pi firmware has .elf files of its own
+!third_party/rpi-firmware/*.elf

@@ -1,10 +1,10 @@
 /*
- * nes-pi - kernel: game list, play with USB pads and HDMI audio, in-game menu
- * with save states, automatic diagnostics in LOG.TXT
+ * s16-pi - kernel: game list, play with USB pads and HDMI audio, in-game menu
+ * with save states and DIP switches, automatic diagnostics in LOG.TXT
  *
  * The class is implemented by area: kernel.cpp (start-up, power off),
- * console.cpp, games.cpp, settings.cpp, menus.cpp, gameloop.cpp, bench.cpp,
- * report.cpp, racing.cpp.
+ * console.cpp, games.cpp, hiscore.cpp, settings.cpp, menus.cpp, gameloop.cpp,
+ * bench.cpp, report.cpp, racing.cpp.
  */
 #ifndef KERNEL_H
 #define KERNEL_H
@@ -35,24 +35,23 @@ extern "C" {
 int snprintf (char *pBuffer, size_t nSize, const char *pFormat, ...);
 }
 
-#define NESPI_DIR	"SD:/nespi"
-#define LOG_PATH	NESPI_DIR "/LOG.TXT"
-#define BENCH_FLAG	NESPI_DIR "/BENCH"
-#define BENCH_PATH	NESPI_DIR "/BENCH.TXT"
-#define PROFILE_PATH	NESPI_DIR "/PROFILE.TXT"
-#define LAST_PATH	NESPI_DIR "/LAST.TXT"
-#define CFG_PATH	NESPI_DIR "/nespi.cfg"
-#define PADS_PATH	NESPI_DIR "/pads.cfg"
-#define PALETTE_PATH	NESPI_DIR "/palette.pal"
-#define SAVE_DIR	NESPI_DIR "/saves"
-#define SHOT_DIR	NESPI_DIR "/shots"
+#define S16PI_DIR	"SD:/s16pi"
+#define LOG_PATH	S16PI_DIR "/LOG.TXT"
+#define BENCH_FLAG	S16PI_DIR "/BENCH"
+#define BENCH_PATH	S16PI_DIR "/BENCH.TXT"
+#define PROFILE_PATH	S16PI_DIR "/PROFILE.TXT"
+#define MCTEST_FLAG	S16PI_DIR "/MCTEST"
+#define MCTEST_PATH	S16PI_DIR "/MCTEST.TXT"
+#define LAST_PATH	S16PI_DIR "/LAST.TXT"
+#define CFG_PATH	S16PI_DIR "/s16pi.cfg"
+#define PADS_PATH	S16PI_DIR "/pads.cfg"
+#define SAVE_DIR	S16PI_DIR "/saves"
+#define SHOT_DIR	S16PI_DIR "/shots"
 
-#ifndef BENCH_WARMUP
+#define SAMPLE_RATE	48000
 #define BENCH_WARMUP	1800		// 30 s of play before measuring
-#endif
-#ifndef BENCH_FRAMES
 #define BENCH_FRAMES	3600		// then 60 s measured
-#endif
+#define MCTEST_FRAMES	3600
 
 #define COLOR_TEXT	RGB (220, 220, 220)
 #define COLOR_TITLE	RGB (255, 200, 0)
@@ -92,7 +91,7 @@ public:
 
 private:
 	// kernel.cpp
-	boolean StartCores (void);
+	void StartCores (void);
 	unsigned LastPlayed (void);
 	void PowerOff (void);
 
@@ -105,20 +104,23 @@ private:
 	void ScanGames (void);
 	boolean LoadGame (unsigned nIndex);
 	void UnloadGame (void);
+	void SaveGameData (void);
 	void GamePath (char *pOut, size_t nSize, const char *pExt) const;
-	void StateExt (char *pExt, unsigned nSlot) const;
-	boolean SaveState (const char *pPath);
-	boolean LoadState (const char *pPath);
-	static size_t BatteryLoad (void *pBuffer, size_t nMax);	// the core's battery RAM
-	static void BatterySave (const void *pData, size_t nSize);
+	void StatePath (char *pOut, size_t nSize) const;
+	static int FetchROM (void *pCtx, const char *pName, uint32_t nCRC, uint32_t nSize, uint8_t *pDst);
+	static boolean IsHiddenDip (const char *pName);
+	void LoadDips (void);
+	void SaveDips (void);
+
+	// hiscore.cpp
+	void HiStart (void);
+	void HiStop (void);
+	void HiTick (void);
+	void HiSave (void);
 
 	// settings.cpp
-	static const char *TvName (int nMode);
-	static const char *PaletteName (int nPalette);
 	static const char *FilterName (unsigned nFilter);
 	static const char *FilterShort (unsigned nFilter);
-	void ApplyPalette (void);
-	void SetTvMode (void);
 	void VideoModeTag (char *pOut, size_t nSize);
 	void ApplyVideoMode (void);
 	void LoadConfig (void);
@@ -127,10 +129,10 @@ private:
 	void SavePads (void);
 
 	// menus.cpp
-	void SnapshotForUI (void);
 	void ShowUIFrame (boolean bWait = TRUE, const char *pTopMessage = 0);
 	unsigned RunList (unsigned nSel);
 	void RunSystemMenu (void);
+	void RunDipMenu (void);
 	int ChoosePad (void);
 	boolean RunMapping (unsigned nSlot, boolean bOverGame);
 	boolean PowerOffCountdown (void);
@@ -141,20 +143,20 @@ private:
 	{
 		boolean bOpenMenu, bOpenCredits, bScreenshot;
 	};
-	void SetupCoreOnce (void);
 	void RunGame (void);
 	void PlayStart (void);
 	void PlayWaitRelease (void);
-	void PlayReadPads (const u32 Pad[2], TPlayInput *pIn);
+	void PlayReadPanels (const u32 Pad[4], TPlayInput *pIn);
 	void PlayOpenMenu (void);
 	unsigned PlayFrame (boolean bRace, boolean bScreenshot, unsigned *pT0, boolean *pOddFrame);
-	boolean PlayMenu (const u32 Pad[2]);
+	boolean PlayMenu (const u32 Pad[4]);
 	void PlayDrawBands (void);
 	void PlayStatusLine (unsigned nNow, unsigned *pNextDeadline);
 	const char *SaveScreenshot (void);
 
 	// bench.cpp
 	void Benchmark (void);
+	void McTest (unsigned nSel);
 
 	// report.cpp, racing.cpp
 	void ResetGameStats (void);
@@ -195,16 +197,21 @@ private:
 	unsigned		m_nRepeat;
 
 	// games
-	u8			*m_pGame;
-	size_t			 m_nGameSize;
+	u8			*m_pZip;	// while loading: the game's zip
+	size_t			 m_nZipSize;
+	u8			*m_pParentZip;	// and its parent's (clones)
+	size_t			 m_nParentZipSize;
 	TGameEntry		*m_pGames;
 	unsigned		 m_nGames;
 	int			 m_nLoaded;	// index in m_pGames, -1 = none
 	unsigned		 m_nShots;	// last screenshot number used
+	u16			 m_nDsw;	// DIP switches of the loaded game (saves/<game>.dip)
 
-	// configuration (nespi.cfg); the picture's settings are in g_Pic (frame.h)
+	// configuration (s16pi.cfg)
 	unsigned		 m_nFilter;	// FILTER_*
 	boolean			 m_bHVS;	// FALSE: scaler=cpu
+	boolean			 m_bMultiCore;	// FALSE: multicore=off, or core 1 did not start
+	boolean			 m_bFilterAllowed;
 
 	// frame pacing and the status line
 	boolean			 m_bVSync;	// FALSE: the firmware's vsync does not block
@@ -214,6 +221,8 @@ private:
 	// RunGame
 	struct TPlay
 	{
+		unsigned nPlayers;
+
 		boolean	 bMenu;			// in-game menu open
 		unsigned nMenuSel;
 		u32	 nMenuPrev;
@@ -222,18 +231,19 @@ private:
 		u32	 nMenuMsgColor;
 
 		// per player
-		u32	 nPrev[2];		// ~0: wait until released
-		boolean	 bSelectCombo[2];	// Select used with another button
-		unsigned nSelectPulse[2];	// a short Select press = Select for 8 frames
-		unsigned nSelectHeld[2];	// frames Select has been held alone
-		boolean	 bLazy[2];		// lazy finger (turbo on A and B), Select+B
-		unsigned nLazyCount[2][2];	// frames each of A and B has been held
+		u32	 nPrev[4];		// ~0: wait until released
+		boolean	 bSelectCombo[4];	// Select used with another button
+		unsigned nCoin[4];		// frames left of a coin press
+		unsigned nSelectHeld[4];	// frames Select has been held alone
+		boolean	 bLazy[4];		// lazy finger (turbo on A-F), Select+B
+		unsigned nLazyCount[4][6];	// frames each of A-F has been held
 
-		// message in the top band (screenshot), in frames
+		// message in the top band, in frames
 		char	 Toast[64];
+		char	 ToastSide[32];		// the same, one word per line (side columns)
 		unsigned nToast, nClearToast;
 
-		// status line (Select+Down), refreshed once per second
+		// status line (Select+C), refreshed once per second
 		char	 StFps[16], StLoad[8], StTemp[8], StRes[8], StScale[16], StDelay[8];
 		u32	 nFpsColor, nLoadColor, nTempColor;
 		boolean	 bStatusReady;

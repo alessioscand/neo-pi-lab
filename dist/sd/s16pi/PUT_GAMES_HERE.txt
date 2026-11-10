@@ -1,0 +1,6 @@
+Put here your SEGA System 16 games as MAME romsets, one .zip each, with
+the names MAME uses (goldnaxe.zip, shinobi.zip, altbeast.zip ...). A
+clone also needs its parent's zip.
+
+s16-pi creates here: saves/ (save states, DIP switches), shots/
+(screenshots), s16pi.cfg, pads.cfg and LOG.TXT.

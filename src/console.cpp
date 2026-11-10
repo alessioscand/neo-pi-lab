@@ -1,5 +1,6 @@
 /*
- * nes-pi - the console: boot messages on screen, serial, LOG.TXT
+ * s16-pi - console: the log on screen during start-up, on the serial port and
+ * in LOG.TXT; fatal errors
  */
 #include "kernel.h"
 #include <stdarg.h>
@@ -175,7 +176,7 @@ void CKernel::Fatal (int nCode, const char *pMessage)
 		Log ("  Check that the card is FAT32 and that the files are in its root.", COLOR_TEXT);
 		break;
 	case PROJECT_ERR_GAME:
-		Log ("  Copy at least one .nes game into the nespi folder.", COLOR_TEXT);
+		Log ("  Copy at least one System 16 game (MAME set, .zip) into the s16pi folder.", COLOR_TEXT);
 		break;
 	case PROJECT_ERR_MEM:
 		Log ("  Not enough memory.", COLOR_TEXT);

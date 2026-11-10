@@ -1,5 +1,5 @@
 /*
- * nes-pi - the screen: what the kernel draws the game, the menus and the
+ * s16-pi - the screen: what the kernel draws the game, the menus and the
  * console on
  *
  * The kernel uses only this interface. CVideoOut (video.cpp) is the HDMI
@@ -11,25 +11,20 @@
 
 #include <circle/types.h>
 
-// the largest picture shown (the scale is chosen so that it fits)
-#define PIC_MAX_W	304
-#define PIC_MAX_H	240
-
-// where the picture is in the buffer handed to DrawGame / DrawGameLine
-struct TVideoSource
-{
-	unsigned nW, nH;		// visible picture
-	unsigned nPitch;		// pixels per buffer line
-	unsigned nX, nY;		// top left of the picture in the buffer
-	unsigned bHalfX;		// 1: half the horizontal scale (the TV filter's
-					// 602-pixel lines: 4:3 at the same height)
-};
+// System 16 visible area: the core hands over 320x224 lines, pitch 320
+#define GAME_SRC_PITCH   320
+#define GAME_SRC_LINES   224
+#define GAME_SRC_X       0
+#define GAME_SRC_Y       0
+#define GAME_W           320
+#define GAME_H           224
 
 #define FILTER_NONE	0
 #define FILTER_SCAN_LIGHT  1	// dark rows at 75%
 #define FILTER_SCAN_MEDIUM 2	// dark rows at 50%
 #define FILTER_SCAN_STRONG 3	// dark rows at 25%
-#define FILTER_COUNT	4
+#define FILTER_COMPOSITE   4	// blargg's NTSC filter (tvcore.h), no dark rows
+#define FILTER_COUNT	5
 
 // Logical colours (R in the low byte); the screen converts them if the
 // framebuffer stores red in the high byte (Pi 4)
@@ -42,12 +37,8 @@ public:
 
 	virtual boolean Initialize (void) = 0;		// console mode
 
-	// Game mode for a filter; bAllowHVS = FALSE forces CPU scaling; bWide: the
-	// TV filter is on (pictures with bHalfX: the CPU must draw at least 2x)
-	virtual boolean SetGameMode (unsigned nFilter, boolean bAllowHVS, boolean bWide = FALSE) = 0;
-	// Which picture comes next (menus or game): if it changes, the picture
-	// rectangle is recomputed and both buffers are cleared
-	virtual void SetSource (const TVideoSource &Source) = 0;
+	// Game mode for a filter; bAllowHVS = FALSE forces CPU scaling
+	virtual boolean SetGameMode (unsigned nFilter, boolean bAllowHVS) = 0;
 	virtual boolean SetConsoleMode (void) = 0;
 	virtual boolean IsGameMode (void) const = 0;
 
@@ -72,15 +63,22 @@ public:
 			       u32 nFG, u32 nBG) = 0;
 	virtual void ClearRows (unsigned nBuffer, unsigned nFirstRow, unsigned nRows, u32 nColor) = 0;
 
-	// The whole picture into the back buffer; bScanlines = FALSE: menus, always sharp
-	virtual void DrawGame (const u32 *pSource, boolean bScanlines = TRUE) = 0;
-	// one line of it, with the caller's scratch lines (PIC_MAX_W * 8 pixels
-	// each): called as each line is finished (the buffer shown while racing)
+	// The visible GAME_W x GAME_H area into the back buffer
+	virtual void DrawGame (const u32 *pSource) = 0;
+	// one line of it, with the caller's scratch lines (GAME_W * 8 pixels each):
+	// called by core 1 as each line is finished
 	virtual void DrawGameLine (const u32 *pSource, unsigned y, u32 *pLine, u32 *pDark) = 0;
+	// COMPOSITE: one filtered line (nNtscW pixels 0x00RRGGBB) stretched to the
+	// game width; pLine = scratch (GAME_W * 8)
+	virtual void DrawNtscLine (unsigned y, const u32 *pNtsc, unsigned nNtscW, u32 *pLine) = 0;
 
-	// One centred line of text in the top or bottom black band (no spans = clear)
+	// Text in the black bands above and below the picture, or in the side
+	// columns when the picture fills the height: one item per line there ('\n'
+	// starts a new line). No spans = clear.
 	struct TTextSpan { const char *pText; u32 nColor; };	// colour: 0xRRGGBB
 	virtual void DrawBandText (boolean bTop, const TTextSpan *pSpans, unsigned nSpans) = 0;
+	virtual boolean HasSideColumns (void) const = 0;	// fixed by SetGameMode
+	virtual void DrawSideText (boolean bRight, const TTextSpan *pSpans, unsigned nSpans) = 0;
 
 	// for the log
 	virtual unsigned GetPixelOrder (void) const = 0;
