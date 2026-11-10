@@ -41,8 +41,7 @@ test/        race_sim.cpp (beam racing host test)
 ```
 
 Differences from m92-pi's front-end: 4 buttons (A B C D; the games use up
-to three), CONTROLS asks A B C D SELECT START, Select opens OPTIONS in the
-game list, DIP switches are one 16-bit value (SW1 low byte, SW2 high byte),
+to three), CONTROLS asks A B C D SELECT START, DIP switches are one 16-bit value (SW1 low byte, SW2 high byte),
 no CPU SPEED, no EEPROM, no cabinet voicing.
 
 ## Building

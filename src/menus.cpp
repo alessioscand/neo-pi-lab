@@ -88,7 +88,7 @@ unsigned CKernel::RunList (unsigned nSel)
 		{
 			return nSel;
 		}
-		if (nNew & BTN_SELECT)
+		if (nNew & BTN_D)
 		{
 			RunSystemMenu ();
 			n = ~0u;		// wait for release

@@ -25,7 +25,7 @@ CONTROLS
   itself: press the button you want for A, B, C, D, SELECT/COIN, START.
 
   Game list: Up/Down to choose, Left/Right to jump by 8, A or Start to
-  play, Select for OPTIONS. A long title scrolls.
+  play, D for OPTIONS. A long title scrolls.
 
   In game:
   Select (short press)      Insert a coin

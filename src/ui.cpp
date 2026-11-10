@@ -119,21 +119,20 @@ void CUI::CText (int y, const char *s, u32 c, unsigned nTall, unsigned nStyle)
 }
 
 // Buttons: 13 px disc in the button colour with a 5x7 letter drawn for it
-// (exactly centred): A red, B yellow, C green, D blue, and S (Select) grey
-static const u32 ButtonColor[5] = {0xDC2828, 0xF0C81E, 0x28B446, 0x325AE6, 0x6E6E78};
-static const u32 ButtonInk[5]   = {0xFFFFFF, 0x281E00, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF};
-static const char *ButtonGlyph[5][7] =
+// (exactly centred), as in the other projects: A red, B yellow, C green, D blue
+static const u32 ButtonColor[4] = {0xDC2828, 0xF0C81E, 0x28B446, 0x325AE6};
+static const u32 ButtonInk[4]   = {0xFFFFFF, 0x281E00, 0xFFFFFF, 0xFFFFFF};
+static const char *ButtonGlyph[4][7] =
 {
 	{".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"},
 	{"####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."},
 	{".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."},
-	{"####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."},
-	{".####", "#....", "#....", ".###.", "....#", "....#", "####."}
+	{"####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."}
 };
 
 static int ButtonIndex (char cButton)
 {
-	return cButton == 'S' ? 4 : (cButton >= 'A' && cButton <= 'D' ? cButton - 'A' : -1);
+	return cButton >= 'A' && cButton <= 'D' ? cButton - 'A' : -1;
 }
 
 void CUI::ButtonIcon (int x, int y, char cButton)
@@ -360,7 +359,7 @@ void CUI::DrawList (const TGameEntry *pGames, unsigned nCount, unsigned nSel, co
 		if (strlen (Info) > nRoom) Info[nRoom] = '\0';
 		Text (22, 177, Info, UI_VALUE, 1, TEXT_LIST);
 	}
-	static const TButtonHint Hints[2] = {{'A', "START GAME"}, {'S', "OPTIONS"}};
+	static const TButtonHint Hints[2] = {{'A', "START GAME"}, {'D', "OPTIONS"}};
 	Buttons (200, Hints, 2);
 }
 
