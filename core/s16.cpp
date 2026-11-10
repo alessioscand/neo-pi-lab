@@ -39,7 +39,7 @@ static struct TMachine
 	u8 nToSound, nFromSound;
 	bool bSoundIrq;
 	bool bMainReset;		// the mapper holds the 68000 in reset
-	u32 nMainFrac, nSoundFrac, nMcuFrac;	// fractions of a cycle carried over
+	s32 nMainFrac, nSoundFrac, nMcuFrac;	// cycles each CPU is owed, 16.16 (negative: it ran ahead)
 	int nMainStall;			// 68000 cycles to lose (see McuPortWrite)
 	u32 nSoundBank;			// offset in the sound region
 	u8 Player[4], nSystem;		// from the front-end, active high
@@ -307,7 +307,11 @@ static void MainWrite16 (u32 a, u16 d, u16 nMask)
 		if (nMask & 0xff00) p[0] = (u8) (d >> 8);
 		if (nMask & 0x00ff) p[1] = (u8) d;
 		break; }
-	case K_SPRITE:	{ u16 &r = V.SprRam[(a & 0x7ff) >> 1]; r = (u16) ((r & ~nMask) | (d & nMask)); break; }
+	case K_SPRITE: {
+		u16 &r = V.SprRam[(a & 0x7ff) >> 1];
+		const u16 n = (u16) ((r & ~nMask) | (d & nMask));
+		if (n != r) { VideoSync (); r = n; }
+		break; }
 	case K_PALETTE: {
 		const unsigned i = (a & 0xfff) >> 1;
 		const u16 n = (u16) ((V.PalRam[i] & ~nMask) | (d & nMask));
@@ -411,7 +415,9 @@ static void McuPortWrite (void *, int nPort, u8)
 	}
 }
 
-// ---- sound CPU (the sound chips come next) -------------------------------------
+// ---- sound CPU ---------------------------------------------------------------------
+
+static void SoundNmi (void)	{ z80_pulse_nmi (&s_Z80); }
 
 static u8 SoundRead (void *, u16 a)
 {
@@ -432,8 +438,8 @@ static u8 SoundPortIn (z80 *, u16 nPort)
 {
 	switch (nPort & 0xc0)
 	{
-	case 0x00: return 0x00;			// YM2151 status
-	case 0x80: return 0x80;			// uPD7759: not busy
+	case 0x00: return s16_sound_ym_r (nPort);
+	case 0x80: return s16_sound_upd_idle () ? 0x80 : 0x00;	// /BUSY
 	case 0xc0: M.bSoundIrq = false; z80_clr_irq (&s_Z80); return M.nToSound;
 	}
 	return 0xff;
@@ -441,8 +447,19 @@ static u8 SoundPortIn (z80 *, u16 nPort)
 
 static void SoundPortOut (z80 *, u16 nPort, u8 d)
 {
-	if ((nPort & 0xc0) == 0x40)		// uPD7759 control and the sample ROM bank
+	if ((nPort & 0xc0) == 0x00)
 	{
+		s16_sound_ym_w (nPort, d);
+	}
+	else if ((nPort & 0xc0) == 0x80)
+	{
+		s16_sound_upd_w (d);
+	}
+	else if ((nPort & 0xc0) == 0x40 && s_pGame->RegionSize[RGN_SOUND] > 0x10000)
+	{
+		// uPD7759 control and the sample ROM bank. /MD first: if it went low
+		// together with /RESET, no sample must start
+		s16_sound_upd_control (!(d & 0x80), (d & 0x40) != 0);
 		const u32 nSize = s_pGame->RegionSize[RGN_SOUND] - 0x10000;
 		u32 nBank;
 		if (s_pGame->nBoard == BOARD_5358 || s_pGame->nBoard == BOARD_5358_SMALL)
@@ -481,6 +498,7 @@ static void Reset (void)
 	UpdateMapping ();
 	m68k_pulse_reset ();
 	z80_reset (&s_Z80);
+	s16_sound_reset ();
 	if (s_pGame->bMcu)
 	{
 		s_Mcu.reset ();
@@ -555,6 +573,7 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 	s_Z80.write_byte = SoundWrite;
 	s_Z80.port_in = SoundPortIn;
 	s_Z80.port_out = SoundPortOut;
+	s16_sound_init (SoundNmi);
 	if (pGame->bMcu)
 	{
 		const i8751_cpu::TBus Bus = {0, McuXRead, McuXWrite, McuPortRead, McuPortWrite};
@@ -597,35 +616,35 @@ static void RunLine (void)
 {
 	for (int s = 0; s < SLICES; s++)
 	{
-		M.nMainFrac += s_nMainPerLine / SLICES;
-		int nMain = (int) (M.nMainFrac >> 16);
-		M.nMainFrac &= 0xffff;
-		if (M.nMainStall > 0)
+		M.nMainFrac += (s32) (s_nMainPerLine / SLICES);
+		int nMain = M.nMainFrac >> 16;
+		if (nMain > 0 && M.nMainStall > 0)	// the 68000 loses these cycles
 		{
 			const int n = nMain < M.nMainStall ? nMain : M.nMainStall;
 			M.nMainStall -= n;
+			M.nMainFrac -= n << 16;
 			nMain -= n;
 		}
-		if (nMain > 0 && !M.bMainReset)
+		if (nMain > 0)
 		{
-			m68k_execute (nMain);
+			M.nMainFrac -= (M.bMainReset ? nMain : m68k_execute (nMain)) << 16;
 		}
 
 		if (s_pGame->bMcu)
 		{
-			M.nMcuFrac += s_nMcuPerLine / SLICES;
-			const int n = (int) (M.nMcuFrac >> 16);
-			if (n > 0)
+			M.nMcuFrac += (s32) (s_nMcuPerLine / SLICES);
+			if (M.nMcuFrac >= 0x10000)
 			{
-				M.nMcuFrac -= (u32) s_Mcu.run (n) << 16;
+				M.nMcuFrac -= s_Mcu.run (M.nMcuFrac >> 16) << 16;
 			}
 		}
 
-		M.nSoundFrac += s_nSoundPerLine / SLICES;
-		const unsigned nSound = M.nSoundFrac >> 16;
-		if (nSound > 0)
+		M.nSoundFrac += (s32) (s_nSoundPerLine / SLICES);
+		if (M.nSoundFrac >= 0x10000)
 		{
-			M.nSoundFrac -= z80_step_n (&s_Z80, nSound) << 16;
+			const unsigned nUsed = z80_step_n (&s_Z80, (unsigned) (M.nSoundFrac >> 16));
+			M.nSoundFrac -= (s32) (nUsed << 16);
+			s16_sound_advance (nUsed);
 		}
 	}
 }
@@ -656,8 +675,6 @@ void s16_run_frame (void)
 		else if (nLine == 0)
 		{
 			if (s_pGame->bMcu)	s_Mcu.set_int (0, false);
-			VideoSync ();
-			s16_video_sprites (&V);
 		}
 		if (nLine < S16_HEIGHT)
 		{
@@ -720,9 +737,7 @@ void s16_set_video_sync (void (*pSync) (void *), void *pCtx)	{ s_pSync = pSync; 
 
 int s16_audio_read (int16_t *pDst, int nMaxFrames)
 {
-	const int n = nMaxFrames < 800 ? nMaxFrames : 800;	// silence until the sound chips are there
-	memset (pDst, 0, (size_t) n * 4);
-	return n;
+	return s16_sound_read (pDst, nMaxFrames);
 }
 
 size_t s16_state_size (void)			{ return 0; }

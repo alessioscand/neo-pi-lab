@@ -20,19 +20,6 @@ static u16 *s_pSprWords;
 static unsigned s_nSprBanks;		// of 0x10000 words
 static u8 s_SprBank[16];
 
-// the sprites of the frame, by line: built once per frame from sprite RAM
-struct TSprRow
-{
-	u16 nAddr;			// first word of the row in the bank
-	u16 nXPos;
-	u16 nColPri;			// priority and colour, bits 4-11
-	u8 nHZoom, nBank;
-	bool bFlip;
-};
-enum { MaxSprites = 128 };
-static TSprRow s_SprRows[S16_HEIGHT][MaxSprites];
-static u8 s_nSprRows[S16_HEIGHT];
-
 void s16_video_init (const u8 *pTiles, size_t nTilesSize, const u8 *pSprites, size_t nSpritesSize,
 		     bool bAltBanks)
 {
@@ -68,7 +55,6 @@ void s16_video_init (const u8 *pTiles, size_t nTilesSize, const u8 *pSprites, si
 	static const u8 Default[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 	static const u8 Alternate[16] = {0, 255, 255, 255, 255, 255, 255, 3, 255, 255, 255, 2, 255, 1, 0, 255};
 	memcpy (s_SprBank, bAltBanks ? Alternate : Default, sizeof s_SprBank);
-	memset (s_nSprRows, 0, sizeof s_nSprRows);
 }
 
 void s16_video_exit (void)
@@ -89,7 +75,6 @@ void s16_video_reset (TS16Video *pV)
 	{
 		s16_video_palette_w (pV, i, 0);
 	}
-	memset (s_nSprRows, 0, sizeof s_nSprRows);
 }
 
 // ---- palette ---------------------------------------------------------------
@@ -221,83 +206,83 @@ static void TextLine (const TS16Video *pV, int y, u16 *pLine)
 
 // ---- sprites ---------------------------------------------------------------
 
-// Walks sprite RAM as the hardware does at each frame: every sprite goes down
-// from its top line to its bottom line, moving its address by its pitch (and
-// once more when the vertical zoom accumulator overflows). What each line
-// will need is noted; the hardware's scratch words (+A, +E) are written back.
-void s16_video_sprites (TS16Video *pV)
+// The sprites of one line into pLine (0xffff = nothing), from sprite RAM as it
+// is now, in list order (a later sprite covers an earlier one).
+// Each sprite goes down from its top line to its bottom line, moving its
+// address by its pitch at every line, and once more when the vertical zoom
+// accumulator overflows: the row for this line is found by walking down from
+// the top. Position 184 is the left edge of the screen; a row ends at a pixel
+// 15, pixel 0 is transparent; the horizontal zoom skips a pixel whenever its
+// accumulator overflows. (The hardware keeps its place in two scratch words of
+// each sprite, +A and +E; they are not written here.)
+// Returns false if no sprite touches the line.
+static bool SpriteLine (const TS16Video *pV, int y, u16 *pLine)
 {
-	memset (s_nSprRows, 0, sizeof s_nSprRows);
-	for (u16 *pData = pV->SprRam; pData < pV->SprRam + 0x400; pData += 8)
+	bool bAny = false;
+	for (const u16 *pData = pV->SprRam; pData < pV->SprRam + 0x400; pData += 8)
 	{
 		if (pData[2] & 0x8000)			// end of the list
 		{
 			break;
 		}
 		const int nBottom = pData[0] >> 8, nTop = pData[0] & 0xff;
-		const int nPitch = (int8_t) (pData[2] & 0xff);
-		u16 nAddr = pData[3];
-		const u8 nBank = s_SprBank[(pData[4] >> 8) & 0x0f];
-		const int nVZoom = (pData[5] >> 5) & 0x1f;
-		pData[7] = nAddr;
-		if ((pData[2] & 0x4000) || nTop >= nBottom || nBank == 255)
+		if (y < nTop || y >= nBottom || (pData[2] & 0x4000))
 		{
-			continue;			// hidden
+			continue;			// not on this line, or hidden
 		}
-		pData[5] &= 0x03ff;
-		TSprRow Row;
-		Row.nXPos = pData[1] & 0x1ff;
-		Row.nColPri = (u16) (((pData[4] & 0xff) << 4) | (((pData[1] >> 9) & 0x0f) << 12));
-		Row.nHZoom = (u8) (pData[5] & 0x1f);
-		Row.nBank = s_nSprBanks ? (u8) (nBank % s_nSprBanks) : 0;
-		Row.bFlip = (pData[2] & 0x100) != 0;
-		for (int y = nTop; y < nBottom; y++)
+		unsigned nBank = s_SprBank[(pData[4] >> 8) & 0x0f];
+		if (nBank == 255)
+		{
+			continue;
+		}
+		if (s_nSprBanks)
+		{
+			nBank %= s_nSprBanks;
+		}
+
+		// down to this line
+		const int nPitch = (int8_t) (pData[2] & 0xff);
+		const unsigned nVZoom = (pData[5] >> 5) & 0x1f;
+		u16 nAddr = pData[3];
+		unsigned nVAcc = 0;
+		for (int r = nTop; r <= y; r++)
 		{
 			nAddr = (u16) (nAddr + nPitch);
-			pData[5] = (u16) (pData[5] + (nVZoom << 10));
-			if (pData[5] & 0x8000)
+			nVAcc += nVZoom;
+			if (nVAcc & 0x20)
 			{
 				nAddr = (u16) (nAddr + nPitch);
-				pData[5] &= ~0x8000;
+				nVAcc &= 0x1f;
 			}
-			if (y < S16_HEIGHT && s_nSprRows[y] < MaxSprites)
-			{
-				Row.nAddr = nAddr;
-				s_SprRows[y][s_nSprRows[y]++] = Row;
-			}
-			pData[7] = nAddr;		// (the hardware leaves the last word read here)
 		}
-	}
-}
 
-// the sprites of one line into pLine (0xffff = nothing): position 184 is the
-// left edge of the screen; a row ends at a pixel 15, pixel 0 is transparent;
-// the horizontal zoom skips a pixel whenever its accumulator overflows
-static void SpriteLine (int y, u16 *pLine)
-{
-	const TSprRow *pRow = s_SprRows[y];
-	for (unsigned n = s_nSprRows[y]; n > 0; n--, pRow++)
-	{
-		const u16 *pData = s_pSprites + 0x10000 * (size_t) pRow->nBank;
-		const int nHZoom = pRow->nHZoom;
+		if (!bAny)
+		{
+			memset (pLine, 0xff, S16_WIDTH * sizeof (u16));
+			bAny = true;
+		}
+		const u16 *pRom = s_pSprites + 0x10000 * (size_t) nBank;
+		const u16 nColPri = (u16) (((pData[4] & 0xff) << 4) | (((pData[1] >> 9) & 0x0f) << 12));
+		const bool bFlip = (pData[2] & 0x100) != 0;
+		const int nHZoom = pData[5] & 0x1f;
 		int nAcc = 4 * nHZoom;
-		int x = (int) pRow->nXPos - 184;
+		int x = (int) (pData[1] & 0x1ff) - 184;
 		const int nEnd = x + 511;
-		u16 nAddr = pRow->bFlip ? (u16) (pRow->nAddr + 1) : (u16) (pRow->nAddr - 1);
+		nAddr = bFlip ? (u16) (nAddr + 1) : (u16) (nAddr - 1);
 		while (x < nEnd)
 		{
-			nAddr = pRow->bFlip ? (u16) (nAddr - 1) : (u16) (nAddr + 1);
-			const u16 nPixels = pData[nAddr];
+			nAddr = bFlip ? (u16) (nAddr - 1) : (u16) (nAddr + 1);
+			const u16 nPixels = pRom[nAddr];
 			int nPix = 0;
 			for (int k = 0; k < 4; k++)
 			{
-				nPix = pRow->bFlip ? (nPixels >> (k * 4)) & 0x0f : (nPixels >> (12 - k * 4)) & 0x0f;
+				nPix = bFlip ? (nPixels >> (k * 4)) & 0x0f : (nPixels >> (12 - k * 4)) & 0x0f;
 				nAcc = (nAcc & 0x3f) + nHZoom;
 				if (nAcc < 0x40)
 				{
 					if (x >= 0 && x < S16_WIDTH && nPix != 0 && nPix != 15)
 					{
-						pLine[x] = (u16) (pRow->nColPri | nPix);
+						pLine[x] = (u16) (nColPri | nPix);
 					}
 					x++;
 				}
@@ -308,6 +293,7 @@ static void SpriteLine (int y, u16 *pLine)
 			}
 		}
 	}
+	return bAny;
 }
 
 // ---- one line of the picture ---------------------------------------------------
@@ -353,10 +339,8 @@ void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 			Pri[x] |= (p & 0x8000) ? 8 : 4;
 		}
 	}
-	if (s_nSprRows[y])
+	if (SpriteLine (pV, y, Spr))
 	{
-		memset (Spr, 0xff, sizeof Spr);
-		SpriteLine (y, Spr);
 		for (int x = 0; x < S16_WIDTH; x++)
 		{
 			const u16 p = Spr[x];

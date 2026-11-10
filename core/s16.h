@@ -18,6 +18,10 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
 
 // ---- game description (core/s16_games.inc) --------------------------------
 
@@ -71,7 +75,18 @@ void s16_video_exit (void);
 void s16_video_reset (TS16Video *pV);
 void s16_video_palette_w (TS16Video *pV, unsigned nIndex, u16 nData);
 void s16_video_latch (TS16Video *pV);			// line 261
-void s16_video_sprites (TS16Video *pV);			// line 0: the sprites of the coming frame
 void s16_video_line (const TS16Video *pV, int y, u32 *pOut);
+
+// ---- sound (s16_sound.cpp) ---------------------------------------------------
+
+void s16_sound_init (void (*pNmi) (void));
+void s16_sound_reset (void);
+void s16_sound_advance (unsigned nCycles);		// Z80 cycles gone by
+u8 s16_sound_ym_r (unsigned nOffset);
+void s16_sound_ym_w (unsigned nOffset, u8 nData);
+void s16_sound_upd_control (bool bMd, bool bReset);
+void s16_sound_upd_w (u8 nData);
+bool s16_sound_upd_idle (void);
+int s16_sound_read (int16_t *pDst, int nMaxFrames);
 
 #endif

@@ -1,10 +1,10 @@
 /*
  * s16-pi - Linux test harness: runs the core without the Pi
  *
- *   s16test <rom folder> <set> [-f frames] [-s every] [-o dir] [-coin frame]
+ *   s16test <rom folder> <set> [-f frames] [-s every] [-o dir] [-w] [-coin frame]
  *
  * <rom folder>/<set>/ holds the set's files, unzipped. -s N: a PPM screenshot
- * every N frames (and always <set>_last.ppm); -coin F: coin at frame F, start
+ * every N frames (and always <set>_last.ppm); -w: the sound as <set>.wav; -coin F: coin at frame F, start
  * one second later.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -56,6 +56,7 @@ int main (int argc, char **argv)
 	}
 	const char *pSet = argv[2];
 	int nFrames = 600, nEvery = 0, nCoin = -1;
+	bool bWav = false;
 	std::string Out = ".";
 	for (int i = 3; i < argc; i++)
 	{
@@ -63,6 +64,7 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "-s") && i + 1 < argc)	nEvery = atoi (argv[++i]);
 		else if (!strcmp (argv[i], "-o") && i + 1 < argc)	Out = argv[++i];
 		else if (!strcmp (argv[i], "-coin") && i + 1 < argc)	nCoin = atoi (argv[++i]);
+		else if (!strcmp (argv[i], "-w"))			bWav = true;
 	}
 	const int nGame = s16_find (pSet);
 	if (nGame < 0)
@@ -80,6 +82,9 @@ int main (int argc, char **argv)
 	printf ("%s: %s\n", pSet, s16_game_desc (nGame));
 	s16_set_line_callback (Line, 0);
 	static int16_t Audio[8192];
+	FILE *pWav = bWav ? fopen ((Out + "/" + pSet + ".wav").c_str (), "wb") : 0;
+	uint32_t nWavBytes = 0;
+	if (pWav) fseek (pWav, 44, SEEK_SET);
 	for (int f = 0; f < nFrames; f++)
 	{
 		uint8_t nSystem = 0;
@@ -87,7 +92,12 @@ int main (int argc, char **argv)
 		if (nCoin >= 0 && f >= nCoin + 60 && f < nCoin + 68)		nSystem |= 0x01;
 		s16_set_system (nSystem);
 		s16_run_frame ();
-		s16_audio_read (Audio, 4096);
+		const int nAudio = s16_audio_read (Audio, 4096);
+		if (pWav)
+		{
+			fwrite (Audio, 4, (size_t) nAudio, pWav);
+			nWavBytes += (uint32_t) nAudio * 4;
+		}
 		if (nEvery && (f + 1) % nEvery == 0)
 		{
 			char Name[64];
@@ -100,5 +110,14 @@ int main (int argc, char **argv)
 		}
 	}
 	SavePPM (Out + "/" + pSet + "_last.ppm");
+	if (pWav)
+	{
+		// 48 kHz, 16 bits, stereo
+		const uint32_t Hdr[11] = {0x46464952, 36 + nWavBytes, 0x45564157, 0x20746d66, 16, 0x00020001,
+					  48000, 48000 * 4, 0x00100004, 0x61746164, nWavBytes};
+		fseek (pWav, 0, SEEK_SET);
+		fwrite (Hdr, 4, 11, pWav);
+		fclose (pWav);
+	}
 	return 0;
 }
