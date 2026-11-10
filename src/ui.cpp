@@ -649,15 +649,18 @@ void CUI::DrawCredits (const char *pVersion)
 	CText (y0 + 48, "BY A.SCANDEREBECH", UI_VALUE);
 	Fill (x0 + 6, y0 + 62, x1 - x0 - 11, 1, UI_LINE);
 
-	// PLACEHOLDER: the core's authors come with the core
-	static const char *Rows[4][2] =
+	static const char *Rows[8][2] =
 	{
+		{"BOARD",  "MAME - A.GILES"},
+		{"68000",  "MUSASHI - K.STENERUD"},
+		{"Z80",    "N.ALLEMAND"},
+		{"YM2151", "YMFM - A.GILES"},
 		{"ZIP",    "MINIZ - R.GELDREICH"},
 		{"SYSTEM", "CIRCLE - R.STANGE"},
 		{"NTSC",   "BLARGG - S.GREEN"},
 		{"FONT",   "ZX ORIGINS - D.GUARD"}
 	};
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 8; i++)
 	{
 		int y = y0 + 68 + i * 10;
 		Text (x0 + 12, y, Rows[i][0], Dim (UI_DIM, 80));

@@ -88,5 +88,6 @@ void s16_sound_upd_control (bool bMd, bool bReset);
 void s16_sound_upd_w (u8 nData);
 bool s16_sound_upd_idle (void);
 int s16_sound_read (int16_t *pDst, int nMaxFrames);
+size_t s16_sound_state (u8 *pBuf, size_t nMax, bool bSave);	// returns the bytes used, 0 = failed
 
 #endif

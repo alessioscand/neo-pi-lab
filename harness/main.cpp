@@ -1,11 +1,12 @@
 /*
  * s16-pi - Linux test harness: runs the core without the Pi
  *
- *   s16test <rom folder> <set> [-f frames] [-s every] [-o dir] [-w] [-coin frame]
+ *   s16test <rom folder> <set> [-f frames] [-s every] [-o dir] [-w] [-coin frame] [-state frame]
  *
  * <rom folder>/<set>/ holds the set's files, unzipped. -s N: a PPM screenshot
  * every N frames (and always <set>_last.ppm); -w: the sound as <set>.wav; -coin F: coin at frame F, start
- * one second later.
+ * one second later; -state F: at frame F a state is saved, 120 frames run and the state is loaded
+ * back (the screenshots must be those of a run without it).
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -57,6 +58,7 @@ int main (int argc, char **argv)
 	const char *pSet = argv[2];
 	int nFrames = 600, nEvery = 0, nCoin = -1;
 	bool bWav = false;
+	int nState = -1;
 	std::string Out = ".";
 	for (int i = 3; i < argc; i++)
 	{
@@ -65,6 +67,7 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "-o") && i + 1 < argc)	Out = argv[++i];
 		else if (!strcmp (argv[i], "-coin") && i + 1 < argc)	nCoin = atoi (argv[++i]);
 		else if (!strcmp (argv[i], "-w"))			bWav = true;
+		else if (!strcmp (argv[i], "-state") && i + 1 < argc)	nState = atoi (argv[++i]);
 	}
 	const int nGame = s16_find (pSet);
 	if (nGame < 0)
@@ -91,6 +94,16 @@ int main (int argc, char **argv)
 		if (nCoin >= 0 && f >= nCoin && f < nCoin + 8)			nSystem |= 0x10;
 		if (nCoin >= 0 && f >= nCoin + 60 && f < nCoin + 68)		nSystem |= 0x01;
 		s16_set_system (nSystem);
+		if (nState > 0 && f == nState)			// save, run on, load: the run must go on the same
+		{
+			const size_t nSize = s16_state_size ();
+			void *pState = malloc (nSize);
+			const int nSaved = s16_state_save (pState, nSize);
+			for (int k = 0; k < 120; k++) { s16_run_frame (); s16_audio_read (Audio, 4096); }
+			printf ("state: %d bytes of %zu, load %s\n", nSaved, nSize,
+				s16_state_load (pState, (size_t) nSaved) ? "ok" : "FAILED");
+			free (pState);
+		}
 		s16_run_frame ();
 		const int nAudio = s16_audio_read (Audio, 4096);
 		if (pWav)

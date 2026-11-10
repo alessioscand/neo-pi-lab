@@ -20,6 +20,7 @@
 #include "ymfm_opm.h"
 #include <string.h>
 #include <math.h>
+#include <vector>
 
 // rates, per Z80 cycle (5 MHz): YM2151 clock 4 MHz (a sample every 64 clocks),
 // uPD7759 clock 640 kHz, output 48 kHz
@@ -431,6 +432,55 @@ void s16_sound_upd_control (bool bMd, bool bReset)
 
 void s16_sound_upd_w (u8 nData)		{ Update (); U.nFifoIn = nData; }
 bool s16_sound_upd_idle (void)		{ Update (); return U.nState == ST_IDLE; }
+
+// save states: everything but the output FIFO (bSave false = load)
+size_t s16_sound_state (u8 *pBuf, size_t nMax, bool bSave)
+{
+	std::vector<uint8_t> Opm;
+	if (bSave)
+	{
+		ymfm::ymfm_saved_state State (Opm, true);
+		s_pOpm->m_Chip.save_restore (State);
+	}
+	struct THead
+	{
+		u32 nOpmSize;
+		TUpd Upd;
+		u64 nCycles, nOutDone, nOpmDone, nOpmTimer[2], nOpmBusyEnd;
+		s32 nOpmPrev, nOpmCur;
+		TBiquad Sk1, Sk2;
+		double fLp, fHpIn, fHpOut, fSpHpIn, fSpHpOut;
+	} H;
+	if (bSave)
+	{
+		memset (&H, 0, sizeof H);
+		H.nOpmSize = (u32) Opm.size ();
+		H.Upd = U;
+		H.nCycles = s_nCycles; H.nOutDone = s_nOutDone; H.nOpmDone = s_nOpmDone;
+		H.nOpmTimer[0] = s_nOpmTimer[0]; H.nOpmTimer[1] = s_nOpmTimer[1]; H.nOpmBusyEnd = s_nOpmBusyEnd;
+		H.nOpmPrev = s_nOpmPrev; H.nOpmCur = s_nOpmCur;
+		H.Sk1 = s_Sk1; H.Sk2 = s_Sk2;
+		H.fLp = s_fLp; H.fHpIn = s_fHpIn; H.fHpOut = s_fHpOut; H.fSpHpIn = s_fSpHpIn; H.fSpHpOut = s_fSpHpOut;
+		if (sizeof H + Opm.size () > nMax) return 0;
+		memcpy (pBuf, &H, sizeof H);
+		memcpy (pBuf + sizeof H, Opm.data (), Opm.size ());
+		return sizeof H + Opm.size ();
+	}
+	if (nMax < sizeof H) return 0;
+	memcpy (&H, pBuf, sizeof H);
+	if (sizeof H + H.nOpmSize > nMax) return 0;
+	Opm.assign (pBuf + sizeof H, pBuf + sizeof H + H.nOpmSize);
+	ymfm::ymfm_saved_state State (Opm, false);
+	s_pOpm->m_Chip.save_restore (State);
+	U = H.Upd;
+	s_nCycles = H.nCycles; s_nOutDone = H.nOutDone; s_nOpmDone = H.nOpmDone;
+	s_nOpmTimer[0] = H.nOpmTimer[0]; s_nOpmTimer[1] = H.nOpmTimer[1]; s_nOpmBusyEnd = H.nOpmBusyEnd;
+	s_nOpmPrev = H.nOpmPrev; s_nOpmCur = H.nOpmCur;
+	s_Sk1 = H.Sk1; s_Sk2 = H.Sk2;
+	s_fLp = H.fLp; s_fHpIn = H.fHpIn; s_fHpOut = H.fHpOut; s_fSpHpIn = H.fSpHpIn; s_fSpHpOut = H.fSpHpOut;
+	s_nFifoWr = s_nFifoRd = 0;
+	return sizeof H + H.nOpmSize;
+}
 
 int s16_sound_read (int16_t *pDst, int nMaxFrames)
 {

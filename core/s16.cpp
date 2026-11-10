@@ -10,6 +10,9 @@
 extern "C" {
 #include "m68k.h"
 #include "z80.h"
+size_t s16_m68k_state_size (void);		// s16_m68kstate.c
+void s16_m68k_state_save (void *pDst);
+void s16_m68k_state_load (const void *pSrc);
 }
 
 #include "s16_games.inc"
@@ -740,9 +743,97 @@ int s16_audio_read (int16_t *pDst, int nMaxFrames)
 	return s16_sound_read (pDst, nMaxFrames);
 }
 
-size_t s16_state_size (void)			{ return 0; }
-int s16_state_save (void *, size_t)		{ return 0; }
-int s16_state_load (const void *, size_t)	{ return 0; }
+// ---- save states -------------------------------------------------------------------
+// A header, then the machine, the video RAM, the three CPUs and the sound, one
+// after the other. A state is for the game (and the build) that made it.
+
+struct TStateHead
+{
+	char Magic[8];			// "S16PI\0" and the format's version
+	char Game[16];
+	u32 nSize;
+};
+static const char s_StateMagic[8] = {'S', '1', '6', 'P', 'I', 0, 0, 1};
+
+// the sound's part has no fixed size: room for it
+#define STATE_SOUND_MAX		0x4000
+
+size_t s16_state_size (void)
+{
+	return sizeof (TStateHead) + sizeof M + sizeof V + s16_m68k_state_size () + sizeof s_Z80
+	       + s_Mcu.state_size () + STATE_SOUND_MAX;
+}
+
+int s16_state_save (void *pBuffer, size_t nSize)
+{
+	if (!s_bLoaded || nSize < s16_state_size ())
+	{
+		return 0;
+	}
+	VideoSync ();
+	u8 *p = (u8 *) pBuffer + sizeof (TStateHead);
+	memcpy (p, &M, sizeof M);				p += sizeof M;
+	memcpy (p, &V, sizeof V);				p += sizeof V;
+	s16_m68k_state_save (p);				p += s16_m68k_state_size ();
+	memcpy (p, &s_Z80, sizeof s_Z80);			p += sizeof s_Z80;
+	memcpy (p, s_Mcu.state_ptr (), s_Mcu.state_size ());	p += s_Mcu.state_size ();
+	const size_t nSound = s16_sound_state (p, STATE_SOUND_MAX, true);
+	if (nSound == 0)
+	{
+		return 0;
+	}
+	p += nSound;
+
+	TStateHead H;
+	memset (&H, 0, sizeof H);
+	memcpy (H.Magic, s_StateMagic, sizeof H.Magic);
+	strncpy (H.Game, s_pGame->pName, sizeof H.Game - 1);
+	H.nSize = (u32) (p - (u8 *) pBuffer);
+	memcpy (pBuffer, &H, sizeof H);
+	return (int) H.nSize;
+}
+
+int s16_state_load (const void *pBuffer, size_t nSize)
+{
+	TStateHead H;
+	if (!s_bLoaded || nSize < sizeof H)
+	{
+		return 0;
+	}
+	memcpy (&H, pBuffer, sizeof H);
+	const size_t nFixed = sizeof H + sizeof M + sizeof V + s16_m68k_state_size () + sizeof s_Z80 + s_Mcu.state_size ();
+	if (memcmp (H.Magic, s_StateMagic, sizeof H.Magic) != 0 || strncmp (H.Game, s_pGame->pName, sizeof H.Game) != 0
+	    || H.nSize > nSize || H.nSize <= nFixed)
+	{
+		return 0;
+	}
+	VideoSync ();
+	const u8 *p = (const u8 *) pBuffer + sizeof H;
+	const u8 Player[4] = {M.Player[0], M.Player[1], M.Player[2], M.Player[3]};
+	const u8 nSystem = M.nSystem;
+	const u16 nDsw = M.nDsw;
+	memcpy (&M, p, sizeof M);				p += sizeof M;
+	memcpy (&V, p, sizeof V);				p += sizeof V;
+	s16_m68k_state_load (p);				p += s16_m68k_state_size ();
+	memcpy (&s_Z80, p, sizeof s_Z80);			p += sizeof s_Z80;
+	memcpy (s_Mcu.state_ptr (), p, s_Mcu.state_size ());	p += s_Mcu.state_size ();
+	if (s16_sound_state ((u8 *) p, H.nSize - nFixed, false) == 0)
+	{
+		Reset ();
+		return 0;
+	}
+	// what belongs to now, not to the state: the Z80's hooks, pads and switches
+	s_Z80.read_byte = SoundRead;
+	s_Z80.write_byte = SoundWrite;
+	s_Z80.port_in = SoundPortIn;
+	s_Z80.port_out = SoundPortOut;
+	s_Z80.userdata = 0;
+	memcpy (M.Player, Player, sizeof Player);
+	M.nSystem = nSystem;
+	M.nDsw = nDsw;
+	UpdateMapping ();
+	return 1;
+}
 size_t s16_hi_size (void)			{ return 0; }
 int s16_hi_ready (void)				{ return 0; }
 void s16_hi_get (u8 *)				{}
