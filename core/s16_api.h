@@ -100,6 +100,10 @@ int s16_hi_ready (void);
 void s16_hi_get (uint8_t *pDst);
 void s16_hi_put (const uint8_t *pSrc);
 
+/* diagnostics */
+uint32_t s16_main_pc (void);
+uint32_t s16_mcu_pc (void);
+
 #ifdef __cplusplus
 }
 #endif

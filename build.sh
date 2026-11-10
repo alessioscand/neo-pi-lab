@@ -21,7 +21,7 @@ for P in $TARGETS; do
 	cp "$ROOT"/third_party/miniz/miniz.c "$B"/
 	cp "$ROOT"/third_party/snes_ntsc/snes_ntsc.c "$B"/ 2>/dev/null || true
 	# the core, flattened: s16_stub.cpp -> s16_stub.core.cpp ...
-	for f in "$ROOT"/core/*.cpp; do
+	for f in "$ROOT"/core/s16_stub.cpp; do	# (the real core joins the Pi build next)
 		n="$(basename "$f" .cpp).core.cpp"
 		cmp -s "$f" "$B/$n" || cp -p "$f" "$B/$n"
 	done
