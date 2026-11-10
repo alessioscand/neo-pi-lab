@@ -3,17 +3,18 @@ s16-pi 0.1.0 - Bare-metal SEGA System 16 emulator for Raspberry Pi 3 and 4
 
 WORK IN PROGRESS
 
-  A first version to try on the Pi: one game for now, Altered Beast
-  (altbeast.zip, MAME's "set 8", the one with the 8751). Picture, sound,
-  save state and the menus are there; DIP switches and the other games
-  are not yet.
+  A first version to try on the Pi: two games for now, Altered Beast
+  (altbeast.zip, MAME's "set 8") and Golden Axe (goldnaxe.zip, MAME's
+  "set 6"), the ones with the 8751. Picture, sound, save state and the
+  menus are there; DIP switches and the other games are not yet.
 
 SET-UP
 
   1. Use a microSD card formatted as FAT32, with a standard partition
      table.
   2. Copy EVERYTHING in this folder to the card's root.
-  3. Put altbeast.zip (MAME romset) in the s16pi folder.
+  3. Put altbeast.zip and goldnaxe.zip (MAME romsets) in the s16pi
+     folder.
   4. Connect a USB gamepad and the display (on a Pi 4, HDMI 0, next to the
      power socket). Insert the card and switch on.
 

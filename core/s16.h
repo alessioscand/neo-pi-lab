@@ -27,7 +27,7 @@ typedef int64_t s64;
 
 enum { RGN_MAIN, RGN_TILES, RGN_SPRITES, RGN_SOUND, RGN_MCU, RGN_KEY, RGN_COUNT };
 enum { LOAD_BYTES, LOAD_EVEN, LOAD_ODD };		// plain, or every other byte (16-bit ROM pairs)
-enum { BOARD_5358_SMALL, BOARD_5358, BOARD_5521, BOARD_5704 };
+enum { BOARD_5358_SMALL, BOARD_5358, BOARD_5521, BOARD_5704, BOARD_5797 };
 enum { CPU_68000, CPU_FD1094, CPU_FD1089A, CPU_FD1089B };
 
 struct TS16Rom
@@ -36,6 +36,7 @@ struct TS16Rom
 	u32 nCRC, nSize;
 	u8 nRegion, nLoad;
 	u32 nOffset;
+	u32 nFrom, nLength;			// a part of the file only (nLength 0: all of it)
 };
 
 struct TS16Game

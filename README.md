@@ -30,20 +30,23 @@ repository is the lab: s16-pi is not released yet.
   - Multicore: the lines are drawn on core 1 from the machine's own video
     RAM; every write to what the drawing reads waits for the lines handed
     over (`VideoSync`).
-- **Games**: `core/s16_games.inc` is still written by hand, with one set:
-  Altered Beast (`altbeast`, 8751). No DIP switches yet.
-- **Checked against MAME** (Altered Beast, attract mode): frames identical
-  pixel for pixel, apart from a logo that changes colour in the middle of a
-  frame (MAME shows the change a frame early). The demo starts 2 frames
-  earlier than in MAME: a difference in the boot's timing, not yet explained.
-- **Not there yet**: FD1094 / FD1089 / MC8123 encryption (most sets), the
-  171-5797 board, flip screen, the game and DIP tables from MAME, hiscores,
+- **Games**: `core/s16_games.inc` is still written by hand, with two sets:
+  Altered Beast (`altbeast`, 8751, 171-5521 board) and Golden Axe
+  (`goldnaxe`, 8751, 171-5797 board). No DIP switches yet.
+- **Checked against MAME** (attract mode): Altered Beast's frames are
+  identical pixel for pixel, apart from a logo that changes colour in the
+  middle of a frame (MAME shows the change a frame early); its demo starts
+  2 frames earlier than in MAME, a difference in the boot's timing not yet
+  explained. Golden Axe's frames are identical too, demo included; the
+  still screens of its boot come up to 4 frames earlier.
+- **Not there yet**: FD1094 / FD1089 / MC8123 encryption (most sets),
+  flip screen, the game and DIP tables from MAME, hiscores,
   System 18.
 
 ## Plan
 
 1. System 16B: game and DIP tables generated from MAME's `segas16b.cpp`,
-   FD1094 / FD1089 / MC8123, the 171-5797 board, hiscores.
+   FD1094 / FD1089 / MC8123, hiscores.
 2. System 18 on top of it (VDP, YM3438 x2, RF5C68).
 
 ## Layout

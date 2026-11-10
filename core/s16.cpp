@@ -45,6 +45,8 @@ static struct TMachine
 	s32 nMainFrac, nSoundFrac, nMcuFrac;	// cycles each CPU is owed, 16.16 (negative: it ran ahead)
 	int nMainStall;			// 68000 cycles to lose (see McuPortWrite)
 	u32 nSoundBank;			// offset in the sound region
+	u16 Mult[2];			// 171-5797: the 315-5248 multiplier
+	struct TCompare { u16 Regs[16]; u8 nBit; } Compare[2];	// and its two 315-5250
 	u8 Player[4], nSystem;		// from the front-end, active high
 	u16 nDsw;
 	int nLine;
@@ -66,7 +68,7 @@ static inline void VideoSync (void)	{ if (s_pSync) s_pSync (s_pSyncCtx); }
 // The 315-5195 places 8 regions anywhere in the 16 MB space; whatever is left
 // reads and writes the mapper's own registers. One entry per 64 KB.
 
-enum { K_MAPPER, K_ROM, K_WORK, K_SPRITE, K_PALETTE, K_TILE, K_TEXT, K_IO, K_BANK };
+enum { K_MAPPER, K_ROM, K_WORK, K_SPRITE, K_PALETTE, K_TILE, K_TEXT, K_IO, K_BANK, K_MATH, K_COMPARE };
 static struct TPage { u8 nKind; u32 nMask; const u8 *pRead; } s_Page[256];
 
 static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, const u8 *pMem, u32 nLength,
@@ -105,6 +107,7 @@ static void UpdateMapping (void)
 	}
 	const u8 *pRom = s_pRegion[RGN_MAIN];
 	const bool bSmall = s_pGame->nBoard == BOARD_5358_SMALL, b5358 = bSmall || s_pGame->nBoard == BOARD_5358;
+	const bool b5797 = s_pGame->nBoard == BOARD_5797;
 	for (int nIndex = 7; nIndex >= 0; nIndex--)		// region 0 has the last word
 	{
 		const u32 nSizeMask = SizeMask[M.Mapper[0x10 + 2 * nIndex] & 3];
@@ -127,14 +130,16 @@ static void UpdateMapping (void)
 		case 3: MapPages (nBase, nSizeMask, K_WORK, 0x3fff, M.WorkRam, 0, 0); break;
 		case 2:
 			if (b5358)	MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, 0x20000, bSmall ? 0x20000 : 0x40000);
+			else if (b5797)	MapPages (nBase, nSizeMask, K_COMPARE, 0, 0, 0, 0);
 			else		MapPages (nBase, nSizeMask, K_BANK, 0, 0, 0, 0);
 			break;
 		case 1:
 			if (b5358)	MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, 0x20000, bSmall ? 0x10000 : 0x20000);
+			else if (b5797)	MapPages (nBase, nSizeMask, K_MATH, 0, 0, 0, 0);
 			else		MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, 0x40000, 0x40000);
 			break;
 		case 0:
-			MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, b5358 ? 0x20000 : 0x40000, 0);
+			MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, b5358 ? 0x20000 : b5797 ? 0x80000 : 0x40000, 0);
 			break;
 		}
 	}
@@ -285,6 +290,101 @@ static void IoWrite (u32 nOffset, u16 nData)
 	}
 }
 
+// ---- 171-5797: the math chips ---------------------------------------------------
+// As MAME's sega_315_5248_multiplier_device and sega_315_5250_compare_timer_device.
+// On this board nothing clocks the 315-5250's timer and its interrupt and sound
+// lines go nowhere: only the compare part is alive.
+
+static u16 MultRead (u32 nOffset)
+{
+	const s32 n = (s32) (s16) M.Mult[0] * (s16) M.Mult[1];
+	switch (nOffset & 3)
+	{
+	case 0:  return M.Mult[0];
+	case 1:  return M.Mult[1];
+	case 2:  return (u16) (n >> 16);
+	default: return (u16) n;
+	}
+}
+
+static void CompareExecute (TMachine::TCompare &C, bool bHistory)
+{
+	const s16 b1 = (s16) C.Regs[0], b2 = (s16) C.Regs[1], v = (s16) C.Regs[2];
+	const s16 nMin = b1 < b2 ? b1 : b2, nMax = b1 > b2 ? b1 : b2;
+	if (v < nMin)		{ C.Regs[7] = (u16) nMin; C.Regs[3] = 0x8000; }
+	else if (v > nMax)	{ C.Regs[7] = (u16) nMax; C.Regs[3] = 0x4000; }
+	else			{ C.Regs[7] = (u16) v;	  C.Regs[3] = 0x0000; }
+	if (bHistory)
+	{
+		C.Regs[4] |= (u16) ((C.Regs[3] == 0) << (C.nBit++ & 15));
+	}
+}
+
+static u16 CompareRead (const TMachine::TCompare &C, u32 nOffset)
+{
+	switch (nOffset & 15)
+	{
+	case 0x0: return C.Regs[0];
+	case 0x1: return C.Regs[1];
+	case 0x2: return C.Regs[2];
+	case 0x3: return C.Regs[3];
+	case 0x4: return C.Regs[4];
+	case 0x5: return C.Regs[1];
+	case 0x6: return C.Regs[2];
+	case 0x7: return C.Regs[7];
+	}
+	return 0xffff;
+}
+
+static void CompareWrite (TMachine::TCompare &C, u32 nOffset, u16 d, u16 nMask)
+{
+#define COMBINE(r)	C.Regs[r] = (u16) ((C.Regs[r] & ~nMask) | (d & nMask))
+	switch (nOffset & 15)
+	{
+	case 0x0: COMBINE (0); CompareExecute (C, false); break;
+	case 0x1: COMBINE (1); CompareExecute (C, false); break;
+	case 0x2: COMBINE (2); CompareExecute (C, true); break;
+	case 0x4: C.Regs[4] = 0; C.nBit = 0; break;
+	case 0x6: COMBINE (2); CompareExecute (C, false); break;
+	case 0x8: case 0xc: COMBINE (8); break;
+	case 0xa: case 0xe: COMBINE (10); break;
+	case 0xb: case 0xf: C.Regs[11] = d & 0xff; break;
+	}
+#undef COMBINE
+}
+
+static u16 MathRead (u32 nOffset)
+{
+	nOffset &= 0x1fff;
+	switch (nOffset & (0x3000 / 2))
+	{
+	case 0x0000 / 2: return MultRead (nOffset);
+	case 0x1000 / 2: return CompareRead (M.Compare[0], nOffset);
+	}
+	return OpenBus ();
+}
+
+static void MathWrite (u32 nOffset, u16 d, u16 nMask)
+{
+	nOffset &= 0x1fff;
+	switch (nOffset & (0x3000 / 2))
+	{
+	case 0x0000 / 2:
+		M.Mult[nOffset & 1] = (u16) ((M.Mult[nOffset & 1] & ~nMask) | (d & nMask));
+		break;
+	case 0x1000 / 2:
+		CompareWrite (M.Compare[0], nOffset, d, nMask);
+		break;
+	case 0x2000 / 2:		// the two tile banks
+		if (nMask & 0x00ff)
+		{
+			const unsigned b = nOffset & 1;
+			if (V.TileBank[b] != (d & 7)) { VideoSync (); V.TileBank[b] = d & 7; }
+		}
+		break;
+	}
+}
+
 static u16 MainRead16 (u32 a)
 {
 	const TPage &P = s_Page[a >> 16];
@@ -296,6 +396,8 @@ static u16 MainRead16 (u32 a)
 	case K_TILE:	return V.TileRam[(a & 0xffff) >> 1];
 	case K_TEXT:	return V.TextRam[(a & 0xfff) >> 1];
 	case K_IO:	return IoRead ((a & 0x3fff) >> 1);
+	case K_MATH:	return MathRead ((a & 0x3fff) >> 1);
+	case K_COMPARE:	return CompareRead (M.Compare[1], (a & 0xffff) >> 1);
 	default:	return (u16) (0xff00 | (MapperRead (a >> 1, true) & 0xff));
 	}
 }
@@ -342,6 +444,8 @@ static void MainWrite16 (u32 a, u16 d, u16 nMask)
 			if (V.TileBank[b] != (d & 7)) { VideoSync (); V.TileBank[b] = d & 7; }
 		}
 		break;
+	case K_MATH:	MathWrite ((a & 0x3fff) >> 1, d, nMask); break;
+	case K_COMPARE:	CompareWrite (M.Compare[1], (a & 0xffff) >> 1, d, nMask); break;
 	case K_MAPPER:
 		if (nMask & 0x00ff) MapperWrite (a >> 1, (u8) d);
 		break;
@@ -474,6 +578,10 @@ static void SoundPortOut (z80 *, u16 nPort, u8 d)
 			if (!(d & 0x20)) nBank = 0x30000;
 			nBank += (d & 0x03) * 0x4000;
 		}
+		else if (s_pGame->nBoard == BOARD_5797)
+		{
+			nBank = ((d & 0x08) >> 3) * 0x40000 + ((d & 0x10) >> 4) * 0x20000 + (d & 0x07) * 0x4000;
+		}
 		else
 		{
 			nBank = ((d & 0x08) >> 3) * 0x20000 + (d & 0x07) * 0x4000;
@@ -534,7 +642,8 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 	{
 		const TS16Rom &R = pGame->pRoms[i];
 		u8 *pDst = s_pRegion[R.nRegion] + R.nOffset;
-		if (R.nLoad == LOAD_BYTES)
+		const u32 nLength = R.nLength ? R.nLength : R.nSize;
+		if (R.nLoad == LOAD_BYTES && !R.nLength)
 		{
 			if (!pFetch (pCtx, R.pName, R.nCRC, R.nSize, pDst)) goto missing;
 			continue;
@@ -545,9 +654,14 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 			pTemp = (u8 *) malloc (nTempSize = R.nSize);
 		}
 		if (!pTemp || !pFetch (pCtx, R.pName, R.nCRC, R.nSize, pTemp)) goto missing;
-		for (u32 k = 0; k < R.nSize; k++)
+		if (R.nLoad == LOAD_BYTES)
 		{
-			pDst[k * 2] = pTemp[k];		// (the offset says which byte of the word)
+			memcpy (pDst, pTemp + R.nFrom, nLength);
+			continue;
+		}
+		for (u32 k = 0; k < nLength; k++)
+		{
+			pDst[k * 2] = pTemp[R.nFrom + k];	// (the offset says which byte of the word)
 		}
 		continue;
 	missing:
@@ -753,7 +867,7 @@ struct TStateHead
 	char Game[16];
 	u32 nSize;
 };
-static const char s_StateMagic[8] = {'S', '1', '6', 'P', 'I', 0, 0, 1};
+static const char s_StateMagic[8] = {'S', '1', '6', 'P', 'I', 0, 0, 2};
 
 // the sound's part has no fixed size: room for it
 #define STATE_SOUND_MAX		0x4000
