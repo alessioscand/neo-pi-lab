@@ -14,15 +14,16 @@ for P in $TARGETS; do
 	mkdir -p "$B"
 	find "$B" -maxdepth 1 -type f ! -name '*.core.o' ! -name '*.core.cpp' ! -name 'libs16.a' -delete
 	# the core's objects do not track headers: a changed header rebuilds the whole core
-	if [ -f "$B/libs16.a" ] && [ -n "$(find "$ROOT/core" \( -name '*.h' -o -name '*.inc' \) -newer "$B/libs16.a")" ]; then
+	T="$ROOT/third_party"
+	if [ -f "$B/libs16.a" ] && [ -n "$(find "$ROOT/core" "$T/musashi" "$T/z80" "$T/ymfm" \( -name '*.h' -o -name '*.inc' \) -newer "$B/libs16.a")" ]; then
 		rm -f "$B"/*.core.o "$B/libs16.a"
 	fi
 	cp "$ROOT"/common/*.c "$ROOT"/common/*.cpp "$ROOT"/src/*.c "$ROOT"/src/*.cpp "$B"/
 	cp "$ROOT"/third_party/miniz/miniz.c "$B"/
 	cp "$ROOT"/third_party/snes_ntsc/snes_ntsc.c "$B"/ 2>/dev/null || true
-	# the core, flattened: s16_stub.cpp -> s16_stub.core.cpp ...
-	for f in "$ROOT"/core/s16_stub.cpp; do	# (the real core joins the Pi build next)
-		n="$(basename "$f" .cpp).core.cpp"
+	# the core, flattened: s16.cpp -> s16.core.cpp, m68kcpu.c -> m68kcpu.core.c ...
+	for f in "$ROOT"/core/*.cpp "$T/ymfm/ymfm_opm.cpp" "$T/musashi/m68kcpu.c" "$T/musashi/m68kops.c" "$T/z80/z80.c"; do
+		n="$(basename "$f")"; n="${n%.*}.core.${n##*.}"
 		cmp -s "$f" "$B/$n" || cp -p "$f" "$B/$n"
 	done
 	CIRCLE="$ROOT/circle-rpi${P}mc"

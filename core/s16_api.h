@@ -80,9 +80,13 @@ void s16_set_line_callback (TS16LineCB *pCB, void *pCtx);
 typedef void TS16LineHook (void *pCtx, int nLine);
 void s16_set_line_hook (TS16LineHook *pHook, void *pCtx);
 
-/* multicore: lines handed to a sink with the registers to draw them with;
- * the sync function must wait until every line handed over has been drawn */
-typedef struct { uint32_t nFrame; uint8_t Player[4]; uint8_t nSystem; } TS16LineRegs;
+/* multicore: lines handed to a sink, to be drawn on another core with
+ * s16_render_line; the core calls the sync function before it changes
+ * anything the drawing reads (video RAM, palette, scroll registers), and the
+ * function must return only when every line handed over has been drawn.
+ * (TS16LineRegs is the place for what a line needs from its own moment; for
+ * now everything is read from the machine, kept still by the sync.) */
+typedef struct { int nLine; } TS16LineRegs;
 typedef void TS16LineSink (void *pCtx, int y, const TS16LineRegs *pRegs);
 void s16_set_line_sink (TS16LineSink *pSink, void *pCtx);	/* 0 = draw on this core */
 void s16_set_video_sync (void (*pSync) (void *), void *pCtx);

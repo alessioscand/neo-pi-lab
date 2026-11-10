@@ -680,7 +680,7 @@ void s16_run_frame (void)
 		{
 			if (s_pSink)
 			{
-				TS16LineRegs Regs = {};
+				const TS16LineRegs Regs = {nLine};
 				s_pSink (s_pSinkCtx, nLine, &Regs);
 			}
 			else if (s_pLineCB)
