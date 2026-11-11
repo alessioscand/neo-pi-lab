@@ -23,7 +23,7 @@ for P in $TARGETS; do
 	cp "$ROOT"/third_party/miniz/miniz.c "$B"/
 	cp "$ROOT"/third_party/snes_ntsc/snes_ntsc.c "$B"/ 2>/dev/null || true
 	# the core, flattened: s16.cpp -> s16.core.cpp, m68kcpu.c -> m68kcpu.core.c ...
-	for f in "$ROOT"/core/*.cpp "$ROOT"/core/*.c "$T/ymfm/ymfm_opm.cpp" "$T/musashi/m68kcpu.c" "$T/musashi/m68kops.c" "$T/z80/z80.c"; do
+	for f in "$ROOT"/core/*.cpp "$ROOT"/core/*.c "$T/ymfm/ymfm_opm.cpp" "$T/ymfm/ymfm_opn.cpp" "$T/ymfm/ymfm_adpcm.cpp" "$T/ymfm/ymfm_ssg.cpp" "$T/musashi/m68kcpu.c" "$T/musashi/m68kops.c" "$T/z80/z80.c"; do
 		n="$(basename "$f")"; n="${n%.*}.core.${n##*.}"
 		cmp -s "$f" "$B/$n" || cp -p "$f" "$B/$n"
 		KEEP="$KEEP $n"

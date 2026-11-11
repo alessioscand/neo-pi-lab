@@ -5,7 +5,7 @@
 #define PROJECT_H
 
 #define PROJECT_NAME	"s16-pi"
-#define PROJECT_VERSION	"0.2.0"
+#define PROJECT_VERSION	"0.3.0"
 
 /* The emulated picture */
 #define PROJECT_WIDTH	320
@@ -29,7 +29,7 @@
 /* Error codes = number of green LED blinks when the screen is unusable */
 #define PROJECT_ERR_FB    2   /* framebuffer / HDMI */
 #define PROJECT_ERR_SD    3   /* SD card or FAT filesystem */
-#define PROJECT_ERR_GAME  5   /* no System 16 game (MAME .zip) in the s16pi folder */
+#define PROJECT_ERR_GAME  5   /* no System 16 or 18 game (MAME .zip) in the s16pi folder */
 #define PROJECT_ERR_CORE  6   /* emulator core error */
 #define PROJECT_ERR_MEM   7   /* out of memory */
 

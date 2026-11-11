@@ -18,11 +18,15 @@ static unsigned s_nTiles;
 static const u16 *s_pSprites;		// sprite ROMs as words in the host's order
 static u16 *s_pSprWords;
 static unsigned s_nSprBanks;		// of 0x10000 words
-static u8 s_SprBank[16];
+static bool s_bAltBanks, s_bS18;
+static unsigned s_nBankSize;
 
 void s16_video_init (const u8 *pTiles, size_t nTilesSize, const u8 *pSprites, size_t nSpritesSize,
-		     bool bAltBanks)
+		     bool bAltBanks, unsigned nBankSize, bool bS18)
 {
+	s_bAltBanks = bAltBanks;
+	s_nBankSize = nBankSize;
+	s_bS18 = bS18;
 	// tiles: three bit planes, one third of the region each; the last third
 	// is the most significant bit
 	const size_t nPlane = nTilesSize / 3;
@@ -50,12 +54,10 @@ void s16_video_init (const u8 *pTiles, size_t nTilesSize, const u8 *pSprites, si
 	}
 	s_pSprites = s_pSprWords;
 	s_nSprBanks = (unsigned) (nSpritesSize / 0x20000);
-
-	// which ROM each of the 16 bank numbers selects (the 171-5358 boards differ)
-	static const u8 Default[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-	static const u8 Alternate[16] = {0, 255, 255, 255, 255, 255, 255, 3, 255, 255, 255, 2, 255, 1, 0, 255};
-	memcpy (s_SprBank, bAltBanks ? Alternate : Default, sizeof s_SprBank);
 }
+
+unsigned s16_video_tiles (void)		{ return s_nTiles; }
+unsigned s16_video_sprite_banks (void)	{ return s_nSprBanks; }
 
 void s16_video_exit (void)
 {
@@ -68,9 +70,16 @@ void s16_video_exit (void)
 void s16_video_reset (TS16Video *pV)
 {
 	memset (pV, 0, sizeof *pV);
-	pV->TileBank[0] = 0;
-	pV->TileBank[1] = 1;
+	for (u8 i = 0; i < 8; i++)
+	{
+		pV->TileBank[i] = i;
+	}
+	// which ROM each of the 16 bank numbers selects (the 171-5358 boards differ)
+	static const u8 Default[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+	static const u8 Alternate[16] = {0, 255, 255, 255, 255, 255, 255, 3, 255, 255, 255, 2, 255, 1, 0, 255};
+	memcpy (pV->SprBank, s_bAltBanks ? Alternate : Default, sizeof pV->SprBank);
 	pV->bDisplay = true;
+	s18_vdp_reset (&pV->Vdp);
 	for (unsigned i = 0; i < 0x800; i++)
 	{
 		s16_video_palette_w (pV, i, 0);
@@ -177,7 +186,7 @@ static void LayerLine (const TS16Video *pV, int nWhich, int y, u16 *pLine)
 			const unsigned nPage = (nPages >> (nQuad * 4)) & 0x0f;
 			const u16 nData = pV->TileRam[nPage * 0x800 + ((nVY & 0xff) >> 3) * 64 + (nTileX & 63)];
 			unsigned nCode = nData & 0x1fff;
-			nCode = (unsigned) pV->TileBank[nCode >> 12] * 0x1000 + (nCode & 0xfff);
+			nCode = (unsigned) pV->TileBank[nCode / s_nBankSize] * s_nBankSize + nCode % s_nBankSize;
 			pPix = s_pTilePix + (size_t) (nCode % s_nTiles) * 64;
 			nBase = (u16) ((nData & 0x8000) | ((nData >> 6) & 0x7f) << 3);
 			nTileRow = (nVY & 7) * 8;
@@ -194,7 +203,7 @@ static void TextLine (const TS16Video *pV, int y, u16 *pLine)
 	for (int tx = 0; tx < S16_WIDTH / 8; tx++)
 	{
 		const u16 nData = pRow[tx];
-		const unsigned nCode = (unsigned) pV->TileBank[0] * 0x1000 + (nData & 0x1ff);
+		const unsigned nCode = (unsigned) pV->TileBank[0] * s_nBankSize + (nData & 0x1ff);
 		const u8 *pPix = s_pTilePix + (size_t) (nCode % s_nTiles) * 64 + nTileRow;
 		const u16 nBase = (u16) ((nData & 0x8000) | ((nData >> 9) & 0x07) << 3);
 		for (int k = 0; k < 8; k++)
@@ -230,7 +239,7 @@ static bool SpriteLine (const TS16Video *pV, int y, u16 *pLine)
 		{
 			continue;			// not on this line, or hidden
 		}
-		unsigned nBank = s_SprBank[(pData[4] >> 8) & 0x0f];
+		unsigned nBank = pV->SprBank[(pData[4] >> 8) & 0x0f];
 		if (nBank == 255)
 		{
 			continue;
@@ -302,6 +311,10 @@ static bool SpriteLine (const TS16Video *pV, int y, u16 *pLine)
 // foreground 2 (4), the text 4 (8); a sprite of priority p shows where
 // (1 << p) is above what the tiles set. A sprite of colour 63 does not show:
 // it turns the pixel under it into its shadow / highlight colour.
+// System 18: the VDP's picture goes in below one of the layers (bits 1-2 of
+// the mixing value: 0 above the background's opaque pass, 1 above the
+// background, 2 above the foreground, 3 above the text); with bit 0 it also
+// sets that layer's own priority bit (as segas18_v.cpp).
 void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 {
 	if (!pV->bDisplay)
@@ -309,16 +322,52 @@ void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 		memset (pOut, 0, S16_WIDTH * sizeof (u32));
 		return;
 	}
-	u16 Layer[S16_WIDTH], Pix[S16_WIDTH], Spr[S16_WIDTH];
+	u16 Layer[S16_WIDTH], Pix[S16_WIDTH], Spr[S16_WIDTH], Vdp[S16_WIDTH];
 	u8 Pri[S16_WIDTH];
 
-	LayerLine (pV, 1, y, Layer);			// background, opaque
+	int nVdpLayer = -1;
+	u8 nVdpPri = 0;
+	if (s_bS18 && pV->bVdpEnable)
+	{
+		nVdpLayer = (pV->nVdpMixing >> 1) & 3;
+		nVdpPri = (pV->nVdpMixing & 1) ? (u8) (1 << nVdpLayer) : 0;
+		s18_vdp_line (&pV->Vdp, y, Vdp);
+	}
+	auto DrawVdp = [&] (int nLayer)
+	{
+		if (nLayer != nVdpLayer) return;
+		for (int x = 0; x < S16_WIDTH; x++)
+		{
+			const u16 r = Vdp[x];
+			if ((r & 0x100) && (r & 0x0f))
+			{
+				Pix[x] = (u16) (0x1000 + (r & 0x3f));
+				Pri[x] |= nVdpPri;
+			}
+		}
+	};
+
+	LayerLine (pV, 1, y, Layer);			// background: opaque, then its pixels' priorities
+	for (int x = 0; x < S16_WIDTH; x++)
+	{
+		Pix[x] = Layer[x] & 0x3ff;
+		Pri[x] = 0;
+	}
+	if (nVdpLayer == 0)
+	{
+		DrawVdp (0);
+		for (int x = 0; x < S16_WIDTH; x++)
+		{
+			const u16 p = Layer[x];
+			if (p & 7) Pix[x] = p & 0x3ff;
+		}
+	}
 	for (int x = 0; x < S16_WIDTH; x++)
 	{
 		const u16 p = Layer[x];
-		Pix[x] = p & 0x3ff;
-		Pri[x] = (p & 7) ? ((p & 0x8000) ? 2 : 1) : 0;
+		if (p & 7) Pri[x] |= (p & 0x8000) ? 2 : 1;
 	}
+	DrawVdp (1);
 	LayerLine (pV, 0, y, Layer);			// foreground
 	for (int x = 0; x < S16_WIDTH; x++)
 	{
@@ -329,6 +378,7 @@ void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 			Pri[x] |= (p & 0x8000) ? 4 : 2;
 		}
 	}
+	DrawVdp (2);
 	TextLine (pV, y, Layer);
 	for (int x = 0; x < S16_WIDTH; x++)
 	{
@@ -339,6 +389,7 @@ void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 			Pri[x] |= (p & 0x8000) ? 8 : 4;
 		}
 	}
+	DrawVdp (3);
 	if (SpriteLine (pV, y, Spr))
 	{
 		for (int x = 0; x < S16_WIDTH; x++)
@@ -348,7 +399,7 @@ void s16_video_line (const TS16Video *pV, int y, u32 *pOut)
 			{
 				if ((p & 0x03f0) == 0x03f0)
 				{
-					Pix[x] += 0x800;
+					if (Pix[x] < 0x800) Pix[x] += 0x800;	// (not over the VDP's colours)
 				}
 				else
 				{

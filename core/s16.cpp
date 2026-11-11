@@ -1,5 +1,9 @@
 /*
- * s16-pi - the System 16B machine (see s16.h)
+ * s16-pi - the System 16B and System 18 machines (see s16.h)
+ *
+ * System 18: as MAME's segas18.cpp (Aaron Giles): the same 315-5195 mapper
+ * with its own regions, the 315-5296 I/O chip, the VDP (s18_vdp.cpp) and its
+ * own sound board (s18_sound.cpp).
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -18,14 +22,15 @@ void s16_m68k_state_load (const void *pSrc);
 #include "s16_games.inc"
 
 // ---- clocks ------------------------------------------------------------------
-// Pixel clock 25.1748 MHz / 4, 400 pixel clocks per line, 262 lines: 60.05 Hz.
-// CPU cycles per line, as 16.16 fixed point: 68000 at 10 MHz, Z80 at 5 MHz,
-// 8751 at 8 MHz / 12.
-#define LINE_HZ		(25174800.0 / 4 / 400)
-#define FIX(hz)		((u32) ((hz) / LINE_HZ * 65536.0 + 0.5))
-static const u32 s_nMainPerLine = FIX (10000000.0);
-static const u32 s_nSoundPerLine = FIX (5000000.0);
-static const u32 s_nMcuPerLine = FIX (8000000.0 / 12);
+// System 16B: pixel clock 25.1748 MHz / 4, 400 pixel clocks per line, 262
+// lines: 60.05 Hz. System 18: 262 lines at 57.23 Hz (MAME: measured on a
+// board), 342 pixels a line.
+// CPU cycles per line, as 16.16 fixed point: 68000 at 10 MHz, Z80 at 5 MHz
+// (System 18: 8 MHz), 8751 at 8 MHz / 12.
+#define LINE_HZ_16B	(25174800.0 / 4 / 400)
+#define LINE_HZ_18	(57.23 * 262)
+#define FIX(hz, line)	((u32) ((hz) / (line) * 65536.0 + 0.5))
+static u32 s_nMainPerLine, s_nSoundPerLine, s_nMcuPerLine;
 #define SLICES		8		// the CPUs take turns this many times per line
 
 // ---- the machine's state -----------------------------------------------------
@@ -33,11 +38,12 @@ static const u32 s_nMcuPerLine = FIX (8000000.0 / 12);
 static const TS16Game *s_pGame;
 static u8 *s_pRegion[RGN_COUNT];
 static bool s_bLoaded;
+static bool s_bS18;
 
 static struct TMachine
 {
 	u8 WorkRam[0x4000];
-	u8 SoundRam[0x800];
+	u8 SoundRam[0x2000];		// (System 16B: 2 KB)
 	u8 Mapper[0x20];		// the 315-5195's registers
 	u8 nToSound, nFromSound;
 	bool bSoundIrq;
@@ -53,6 +59,10 @@ static struct TMachine
 	u16 nDsw;
 	int nLine;
 	u32 nFrame;
+	// System 18
+	u8 IoLatch[8], nIoDir, nIoCnt;	// the 315-5296
+	bool bSoundNmi;			// the mapper's line to the Z80's NMI
+	u32 nMainLineDone;		// 68000 cycles run in this line (the VDP's H counter)
 } M;
 static TS16Video V;
 static z80 s_Z80;
@@ -70,11 +80,12 @@ static inline void VideoSync (void)	{ if (s_pSync) s_pSync (s_pSyncCtx); }
 // The 315-5195 places 8 regions anywhere in the 16 MB space; whatever is left
 // reads and writes the mapper's own registers. One entry per 64 KB.
 
-enum { K_MAPPER, K_ROM, K_WORK, K_SPRITE, K_PALETTE, K_TILE, K_TEXT, K_IO, K_BANK, K_MATH, K_COMPARE };
+enum { K_MAPPER, K_ROM, K_WORK, K_SPRITE, K_PALETTE, K_TILE, K_TEXT, K_IO, K_BANK, K_MATH, K_COMPARE, K_VDP };
 // pRead: what the 68000 reads there; pOpcodes: what it fetches as opcodes (the
 // same, without an encrypted CPU). A null pointer on a ROM page: not decrypted
-// yet (see the encrypted CPUs below).
-static struct TPage { u8 nKind; u32 nMask; const u8 *pRead, *pOpcodes; u32 nRom; } s_Page[256];
+// yet (see the encrypted CPUs below). bBankWrite: a write to this ROM sets the
+// banks of the System 18 171-5987 board.
+static struct TPage { u8 nKind; bool bBankWrite; u32 nMask; const u8 *pRead, *pOpcodes; u32 nRom; } s_Page[256];
 
 static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, const u8 *pMem, u32 nLength,
 		      u32 nRomOffset)
@@ -83,6 +94,7 @@ static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, c
 	{
 		TPage &P = s_Page[a >> 16];
 		P.nKind = nKind;
+		P.bBankWrite = false;
 		P.nMask = nMask;
 		P.pRead = P.pOpcodes = pMem;
 		P.nRom = 0;
@@ -103,16 +115,79 @@ static void MapPages (unsigned nBase, unsigned nSizeMask, u8 nKind, u32 nMask, c
 	}
 }
 
+static const u32 s_SizeMask[4] = {0x00ffff, 0x01ffff, 0x07ffff, 0x1fffff};
+
+// tile RAM, with the text RAM in its second 64 KB (or over all of a 64 KB region)
+static void MapTiles (u32 nBase, u32 nSizeMask)
+{
+	MapPages (nBase, nSizeMask, K_TILE, 0xffff, 0, 0, 0);
+	for (u32 a = nBase; a <= nBase + nSizeMask; a += 0x10000)
+	{
+		if (nSizeMask == 0xffff || ((a - nBase) & 0x10000))
+		{
+			MapPages (a, 0xffff, K_TEXT, 0x0fff, 0, 0, 0);
+		}
+	}
+}
+
+// as segas18_state::memory_mapper
+static void UpdateMapping18 (void)
+{
+	const u8 *pRom = s_pRegion[RGN_MAIN];
+	const u8 nBoard = s_pGame->nBoard;
+	const bool bBig = s_pGame->RegionSize[RGN_MAIN] > 0x100000;	// 171-5987 with 2 MB
+	for (int nIndex = 7; nIndex >= 0; nIndex--)
+	{
+		const u32 nSizeMask = s_SizeMask[M.Mapper[0x10 + 2 * nIndex] & 3];
+		const u32 nBase = ((u32) M.Mapper[0x11 + 2 * nIndex] << 16) & ~nSizeMask;
+		switch (nIndex)
+		{
+		case 7: MapPages (nBase, nSizeMask, K_IO, 0x3fff, 0, 0, 0); break;
+		case 6: MapPages (nBase, nSizeMask, K_PALETTE, 0x0fff, 0, 0, 0); break;
+		case 5: MapTiles (nBase, nSizeMask); break;
+		case 4: MapPages (nBase, nSizeMask, K_SPRITE, 0x07ff, 0, 0, 0); break;
+		case 3: MapPages (nBase, nSizeMask, K_WORK, 0x3fff, M.WorkRam, 0, 0); break;
+		case 2:
+			if (nBoard != BOARD_S18_SHADOW) MapPages (nBase, nSizeMask, K_VDP, 0, 0, 0, 0);
+			break;
+		case 1:
+			if (nBoard == BOARD_S18_SHADOW)
+			{
+				MapPages (nBase, nSizeMask, K_VDP, 0, 0, 0, 0);
+			}
+			else
+			{
+				const u32 nLength = bBig ? 0x100000 : 0x80000;
+				MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, nLength, nLength);
+				for (u32 a = nBase; nBoard == BOARD_S18_5987 && a <= nBase + nSizeMask && a < 0x1000000; a += 0x10000)
+				{
+					if (s_Page[a >> 16].nKind == K_ROM) s_Page[a >> 16].bBankWrite = true;
+				}
+			}
+			break;
+		case 0:
+			MapPages (nBase, nSizeMask, K_ROM, 0xffff, pRom, bBig ? 0x100000 : 0x80000, 0);
+			break;
+		}
+	}
+}
+
 // as MAME's sega_315_5195_mapper_device::update_mapping and segas16b_state::memory_mapper
 static void UpdateMapping (void)
 {
-	static const u32 SizeMask[4] = {0x00ffff, 0x01ffff, 0x07ffff, 0x1fffff};
+	const u32 *SizeMask = s_SizeMask;
 	for (unsigned i = 0; i < 256; i++)
 	{
 		s_Page[i].nKind = K_MAPPER;
+		s_Page[i].bBankWrite = false;
 		s_Page[i].nMask = 0;
 		s_Page[i].pRead = s_Page[i].pOpcodes = 0;
 		s_Page[i].nRom = 0;
+	}
+	if (s_bS18)
+	{
+		UpdateMapping18 ();
+		return;
 	}
 	const u8 *pRom = s_pRegion[RGN_MAIN];
 	const bool bSmall = s_pGame->nBoard == BOARD_5358_SMALL, b5358 = bSmall || s_pGame->nBoard == BOARD_5358;
@@ -125,16 +200,7 @@ static void UpdateMapping (void)
 		{
 		case 7: MapPages (nBase, nSizeMask, K_IO, 0x3fff, 0, 0, 0); break;
 		case 6: MapPages (nBase, nSizeMask, K_PALETTE, 0x0fff, 0, 0, 0); break;
-		case 5:
-			MapPages (nBase, nSizeMask, K_TILE, 0xffff, 0, 0, 0);
-			for (u32 a = nBase; a <= nBase + nSizeMask; a += 0x10000)
-			{
-				if (nSizeMask == 0xffff || ((a - nBase) & 0x10000))
-				{
-					MapPages (a, 0xffff, K_TEXT, 0x0fff, 0, 0, 0);
-				}
-			}
-			break;
+		case 5: MapTiles (nBase, nSizeMask); break;
 		case 4: MapPages (nBase, nSizeMask, K_SPRITE, 0x07ff, 0, 0, 0); break;
 		case 3: MapPages (nBase, nSizeMask, K_WORK, 0x3fff, M.WorkRam, 0, 0); break;
 		case 2:
@@ -273,6 +339,12 @@ static void MapperWrite (unsigned nOffset, u8 nData)
 		break;
 	case 0x03:			// a byte for the sound CPU, with its interrupt
 		M.nToSound = nData;
+		if (s_bS18)		// (System 18: the NMI, an edge)
+		{
+			if (!M.bSoundNmi) z80_pulse_nmi (&s_Z80);
+			M.bSoundNmi = true;
+			break;
+		}
 		M.bSoundIrq = true;
 		z80_assert_irq (&s_Z80, 0xff);
 		break;
@@ -314,7 +386,9 @@ static u16 MapperRead (unsigned nOffset, bool bWide)
 	{
 	case 0x00: case 0x01:	return M.Mapper[nOffset];
 	case 0x02:		return (M.Mapper[0x02] & 3) == 3 ? 0x00 : 0x0f;
-	case 0x03:		return M.nFromSound;
+	case 0x03:
+		if (s_bS18 && s_pGame->nMcu == MCU_8751) s_Mcu.set_int (1, false);
+		return M.nFromSound;
 	default:		return bWide ? OpenBus () : 0xff;
 	}
 }
@@ -322,7 +396,20 @@ static u16 MapperRead (unsigned nOffset, bool bWide)
 // inputs, active low as the board reads them
 static u8 InputPort (int nPort)
 {
-	const u8 *pBits = s_pGame->pInputs->Port[nPort];
+	const TS16Inputs *pIn = s_pGame->pInputs;
+	u8 Bits[8];
+	memcpy (Bits, pIn->Port[nPort], 8);
+	for (unsigned i = 0; i < pIn->nConds; i++)	// first the bits that are 0 now
+	{
+		const TS16CondBit &C = pIn->pConds[i];
+		if (C.nPort == nPort) Bits[C.nBit] = 0;
+	}
+	for (unsigned i = 0; i < pIn->nConds; i++)
+	{
+		const TS16CondBit &C = pIn->pConds[i];
+		if (C.nPort == nPort && (M.nDsw & C.nDswMask) == C.nDswValue) Bits[C.nBit] = C.nCode;
+	}
+	const u8 *pBits = Bits;
 	u8 n = 0xff;
 	for (int b = 0; b < 8; b++)
 	{
@@ -364,6 +451,182 @@ static void IoWrite (u32 nOffset, u16 nData)
 			VideoSync ();
 			V.bDisplay = bDisplay;
 		}
+	}
+}
+
+// ---- System 18: the 315-5296 I/O chip, the video control latch ------------------
+// Ports A-C: players 1-3, D: outputs (flip, coin counters), E: service, F:
+// SW1, G: SW2, H: the tile banks of the 171-5874 / shadow boards. CNT1: the
+// display, CNT2: the VDP. D. D. Crew's 8255 adds players 3 and 4 at 3020-3026.
+
+static void IoPortOut18 (int nPort, u8 d)
+{
+	if (nPort == 7 && s_pGame->nBoard != BOARD_S18_5987)
+	{
+		VideoSync ();
+		for (int i = 0; i < 4; i++)
+		{
+			V.TileBank[i] = (u8) ((d & 0xf) * 4 + i);
+			V.TileBank[4 + i] = (u8) (((d >> 4) & 0xf) * 4 + i);
+		}
+	}
+}
+
+static void IoCnt18 (u8 d)
+{
+	const bool bDisplay = d & 2, bVdp = d & 4;
+	if (bDisplay != V.bDisplay || bVdp != V.bVdpEnable)
+	{
+		VideoSync ();
+		V.bDisplay = bDisplay;
+		V.bVdpEnable = bVdp;
+	}
+}
+
+static void IoReset18 (void)
+{
+	memset (M.IoLatch, 0, sizeof M.IoLatch);
+	M.nIoDir = M.nIoCnt = 0;
+	for (int i = 0; i < 8; i++) IoPortOut18 (i, 0);
+}
+
+static u8 IoChipRead (unsigned nReg)
+{
+	nReg &= 0x3f;
+	if (nReg < 8)
+	{
+		if (M.nIoDir & (1 << nReg)) return M.IoLatch[nReg];
+		switch (nReg)
+		{
+		case 0: return InputPort (0);
+		case 1: return InputPort (1);
+		case 2: return InputPort (2);
+		case 4: return InputPort (3);
+		case 5: return (u8) M.nDsw;		// SW1
+		case 6: return (u8) (M.nDsw >> 8);	// SW2
+		default: return 0xff;
+		}
+	}
+	switch (nReg)
+	{
+	case 0x8: return 'S';
+	case 0x9: return 'E';
+	case 0xa: return 'G';
+	case 0xb: return 'A';
+	case 0xc: case 0xe: return M.nIoCnt;
+	case 0xd: case 0xf: return M.nIoDir;
+	}
+	return 0xff;
+}
+
+static void IoChipWrite (unsigned nReg, u8 d)
+{
+	nReg &= 0x3f;
+	if (nReg < 8)
+	{
+		if (M.nIoDir & (1 << nReg)) IoPortOut18 ((int) nReg, d);
+		M.IoLatch[nReg] = d;
+	}
+	else if (nReg == 0xe)
+	{
+		IoCnt18 (d);
+		M.nIoCnt = d;
+	}
+	else if (nReg == 0xf)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			if ((M.nIoDir ^ d) & (1 << i)) IoPortOut18 (i, (d & (1 << i)) ? M.IoLatch[i] : 0);
+		}
+		M.nIoDir = d;
+	}
+}
+
+static u16 IoRead18 (u32 nOffset)
+{
+	nOffset &= 0x1fff;
+	switch (nOffset & (0x3000 / 2))
+	{
+	case 0x0000 / 2: case 0x1000 / 2:
+		return (u16) ((OpenBus () & 0xff00) | IoChipRead (nOffset));
+	case 0x2000 / 2:
+		return (nOffset & 1) ? (u16) (M.nDsw & 0xff) : InputPort (3);
+	}
+	if (s_pGame->bPpi && nOffset >= 0x3020 / 2 && nOffset <= 0x3024 / 2)
+	{
+		return InputPort (4 + (nOffset & 3));
+	}
+	return OpenBus ();
+}
+
+static void IoWrite18 (u32 nOffset, u16 d, u16 nMask)
+{
+	nOffset &= 0x1fff;
+	if (!(nMask & 0x00ff))
+	{
+		return;
+	}
+	switch (nOffset & (0x3000 / 2))
+	{
+	case 0x0000 / 2: case 0x1000 / 2:
+		IoChipWrite (nOffset, (u8) d);
+		break;
+	case 0x2000 / 2:
+		if (V.nVdpMixing != (u8) d)
+		{
+			VideoSync ();
+			V.nVdpMixing = (u8) d;
+		}
+		break;
+	}
+}
+
+// 171-5987: the tile banks (offsets 0-7) and the sprite banks (8-15) of
+// 2 x 128 KB each
+static void Rom5987Bank (u32 nOffset, u16 d, u16 nMask)
+{
+	if (!(nMask & 0x00ff))
+	{
+		return;
+	}
+	nOffset &= 0xf;
+	unsigned n = d & 0xff;
+	VideoSync ();
+	if (nOffset < 8)
+	{
+		const unsigned nMax = s16_video_tiles () >> 10;
+		if (nMax && n >= nMax) n %= nMax;
+		V.TileBank[nOffset] = (u8) n;
+	}
+	else
+	{
+		const unsigned nMax = s16_video_sprite_banks () / 2;
+		V.SprBank[(nOffset - 8) * 2 + 0] = n >= nMax ? 255 : (u8) (n * 2 + 0);
+		V.SprBank[(nOffset - 8) * 2 + 1] = n >= nMax ? 255 : (u8) (n * 2 + 1);
+	}
+}
+
+// the VDP: its H counter from the 68000's place in the line
+static u16 VdpBusRead (u32 a)	{ return MainRead16 (a & 0xfffffe); }
+
+static u16 VdpRead (u32 a)
+{
+	const u32 nPerLine = s_nMainPerLine >> 16;
+	const u32 nDone = M.nMainLineDone + (u32) m68k_cycles_run ();
+	int nHpos = (int) (nDone * 342 / nPerLine);
+	if (nHpos > 341) nHpos = 341;
+	return s18_vdp_read (&V.Vdp, a & 0xf, M.nLine, nHpos);
+}
+
+static void VdpWrite (u32 a, u16 d, u16 nMask)
+{
+	VideoSync ();
+	TS18VdpBus Bus = {VdpBusRead, 0};
+	s18_vdp_write (&V.Vdp, a & 0xf, d, nMask, V.Colors + 0x1000, &Bus);
+	if (Bus.nStall)
+	{
+		M.nMainStall += (int) Bus.nStall;
+		m68k_end_timeslice ();
 	}
 }
 
@@ -475,7 +738,8 @@ static u16 MainRead16 (u32 a)
 	case K_PALETTE:	return V.PalRam[(a & 0xfff) >> 1];
 	case K_TILE:	return V.TileRam[(a & 0xffff) >> 1];
 	case K_TEXT:	return V.TextRam[(a & 0xfff) >> 1];
-	case K_IO:	return IoRead ((a & 0x3fff) >> 1);
+	case K_IO:	return s_bS18 ? IoRead18 ((a & 0x3fff) >> 1) : IoRead ((a & 0x3fff) >> 1);
+	case K_VDP:	return VdpRead (a);
 	case K_MATH:	return MathRead ((a & 0x3fff) >> 1);
 	case K_COMPARE:	return CompareRead (M.Compare[1], (a & 0xffff) >> 1);
 	default:	return (u16) (0xff00 | (MapperRead (a >> 1, true) & 0xff));
@@ -516,7 +780,11 @@ static void MainWrite16 (u32 a, u16 d, u16 nMask)
 		const u16 n = (u16) ((r & ~nMask) | (d & nMask));
 		if (n != r) { VideoSync (); r = n; }
 		break; }
-	case K_IO:	IoWrite ((a & 0x3fff) >> 1, d); break;
+	case K_IO:
+		if (s_bS18)	IoWrite18 ((a & 0x3fff) >> 1, d, nMask);
+		else		IoWrite ((a & 0x3fff) >> 1, d);
+		break;
+	case K_VDP:	VdpWrite (a, d, nMask); break;
 	case K_BANK:			// 171-5521 / 5704: the two tile banks
 		if (nMask & 0x00ff)
 		{
@@ -529,7 +797,10 @@ static void MainWrite16 (u32 a, u16 d, u16 nMask)
 	case K_MAPPER:
 		if (nMask & 0x00ff) MapperWrite (a >> 1, (u8) d);
 		break;
-	default:	break;		// ROM
+	case K_ROM:
+		if (P.bBankWrite) Rom5987Bank (a >> 1, d, nMask);
+		break;
+	default:	break;
 	}
 }
 
@@ -652,9 +923,13 @@ static void MainReset (void)
 
 static u8 McuXRead (void *, u16 a)		{ return (a & 0xff) < 0x20 ? (u8) MapperRead (a, false) : 0xff; }
 static void McuXWrite (void *, u16 a, u8 d)	{ if ((a & 0xff) < 0x20) MapperWrite (a, d); }
-static u8 McuPortRead (void *, int nPort)	{ return nPort == 1 ? InputPort (0) : 0xff; }
+static u8 McuPortRead (void *, int nPort)	{ return nPort == 1 && !s_bS18 ? InputPort (0) : 0xff; }
 static void McuPortWrite (void *, int nPort, u8)
 {
+	if (s_bS18)			// (not connected on System 18)
+	{
+		return;
+	}
 	// as MAME (spin_68k_w): a write to port 1 takes the bus from the 68000 for
 	// a while; without it the two fight over the mapper (Golden Axe hangs)
 	if (nPort == 1)
@@ -741,6 +1016,70 @@ static void SoundPortOut (z80 *, u16 nPort, u8 d)
 	}
 }
 
+// ---- System 18 sound CPU ------------------------------------------------------------
+// 0000-9FFF program, A000-BFFF a bank of 8 KB of the sound region, C000-DFFF
+// the RF5C68 (registers, then a 4 KB window on its wave RAM), E000-FFFF RAM.
+// Ports: 80 and 90 the two YM3438, A0 the bank, C0 the mapper's latches.
+
+static void Sound18Irq (bool bOn)
+{
+	if (bOn)	z80_assert_irq (&s_Z80, 0xff);
+	else		z80_clr_irq (&s_Z80);
+}
+
+static u8 Sound18Read (void *, u16 a)
+{
+	const u8 *pRom = s_pRegion[RGN_SOUND];
+	if (a < 0xa000)		return pRom[a];
+	if (a < 0xc000)		return pRom[(M.nSoundBank + (a - 0xa000)) % s_pGame->RegionSize[RGN_SOUND]];
+	if (a < 0xd000)		return 0xff;
+	if (a < 0xe000)		return s18_sound_rf_mem_r (a);
+	return M.SoundRam[a & 0x1fff];
+}
+
+static void Sound18Write (void *, u16 a, u8 d)
+{
+	if (a >= 0xe000)	M.SoundRam[a & 0x1fff] = d;
+	else if (a >= 0xd000)	s18_sound_rf_mem_w (a, d);
+	else if (a >= 0xc000)	s18_sound_rf_w (a, d);
+}
+
+static u8 Sound18PortIn (z80 *, u16 nPort)
+{
+	nPort &= 0xff;
+	switch (nPort & 0xf0)
+	{
+	case 0x80: return s18_sound_ym_r (0, nPort);
+	case 0x90: return s18_sound_ym_r (1, nPort);
+	case 0xc0: case 0xd0: M.bSoundNmi = false; return M.nToSound;
+	}
+	return 0xff;
+}
+
+static void Sound18PortOut (z80 *, u16 nPort, u8 d)
+{
+	nPort &= 0xff;
+	switch (nPort & 0xf0)
+	{
+	case 0x80: s18_sound_ym_w (0, nPort, d); break;
+	case 0x90: s18_sound_ym_w (1, nPort, d); break;
+	case 0xa0: case 0xb0: M.nSoundBank = (u32) d * 0x2000; break;
+	case 0xc0: case 0xd0:
+		M.nFromSound = d;
+		if (s_pGame->nMcu == MCU_8751) s_Mcu.set_int (1, true);
+		break;
+	}
+}
+
+static void SoundHooks (void)
+{
+	s_Z80.read_byte = s_bS18 ? Sound18Read : SoundRead;
+	s_Z80.write_byte = s_bS18 ? Sound18Write : SoundWrite;
+	s_Z80.port_in = s_bS18 ? Sound18PortIn : SoundPortIn;
+	s_Z80.port_out = s_bS18 ? Sound18PortOut : SoundPortOut;
+	s_Z80.userdata = 0;
+}
+
 // ---- the machine ----------------------------------------------------------------
 
 static void Reset (void)
@@ -756,11 +1095,19 @@ static void Reset (void)
 	M.nSoundBank = 0;
 	M.nLine = S16_HEIGHT;
 	M.nFrame = 0;
+	M.bSoundNmi = false;
+	M.nMainLineDone = 0;
 	s16_video_reset (&V);
+	if (s_bS18)
+	{
+		V.bDisplay = false;
+		IoReset18 ();
+	}
 	UpdateMapping ();
 	MainReset ();
 	z80_reset (&s_Z80);
-	s16_sound_reset ();
+	if (s_bS18)	s18_sound_reset ();
+	else		s16_sound_reset ();
 	if ((s_pGame->nMcu == MCU_8751))
 	{
 		s_Mcu.reset ();
@@ -835,20 +1182,26 @@ int s16_load (int nGame, TS16Fetch *pFetch, void *pCtx, char *pMissing, size_t n
 	free (pTemp);
 
 	s_pGame = pGame;
+	s_bS18 = S18Board (pGame->nBoard);
+	{
+		const double fLine = s_bS18 ? LINE_HZ_18 : LINE_HZ_16B;
+		s_nMainPerLine = FIX (10000000.0, fLine);
+		s_nSoundPerLine = FIX (s_bS18 ? 8000000.0 : 5000000.0, fLine);
+		s_nMcuPerLine = FIX (8000000.0 / 12, fLine);
+	}
 	s16_video_init (s_pRegion[RGN_TILES], pGame->RegionSize[RGN_TILES],
 			s_pRegion[RGN_SPRITES], pGame->RegionSize[RGN_SPRITES],
-			pGame->nBoard == BOARD_5358 || pGame->nBoard == BOARD_5358_SMALL);
+			pGame->nBoard == BOARD_5358 || pGame->nBoard == BOARD_5358_SMALL,
+			s_bS18 ? 0x400 : 0x1000, s_bS18);
 	memset (&M, 0, sizeof M);
 	M.nDsw = pGame->pInputs->nDswDefault;
 
 	m68k_init ();
 	m68k_set_cpu_type (M68K_CPU_TYPE_68000);
 	z80_init (&s_Z80);
-	s_Z80.read_byte = SoundRead;
-	s_Z80.write_byte = SoundWrite;
-	s_Z80.port_in = SoundPortIn;
-	s_Z80.port_out = SoundPortOut;
-	s16_sound_init (SoundNmi);
+	SoundHooks ();
+	if (s_bS18)	s18_sound_init (Sound18Irq);
+	else		s16_sound_init (SoundNmi);
 	if (pGame->bMc8123)
 	{
 		s_pSoundOpcodes = (u8 *) malloc (0x8000);
@@ -885,6 +1238,7 @@ void s16_unload (void)
 	free (s_pSoundOpcodes);
 	s_pSoundOpcodes = 0;
 	s_bLoaded = false;
+	s_bS18 = false;
 	s_pGame = 0;
 }
 
@@ -915,7 +1269,9 @@ static void RunLine (void)
 		}
 		if (nMain > 0)
 		{
-			M.nMainFrac -= (M.bMainReset ? nMain : m68k_execute (nMain)) << 16;
+			const int nRun = M.bMainReset ? nMain : m68k_execute (nMain);
+			M.nMainFrac -= nRun << 16;
+			M.nMainLineDone += (u32) nRun;
 		}
 
 		if ((s_pGame->nMcu == MCU_8751))
@@ -932,7 +1288,8 @@ static void RunLine (void)
 		{
 			const unsigned nUsed = z80_step_n (&s_Z80, (unsigned) (M.nSoundFrac >> 16));
 			M.nSoundFrac -= (s32) (nUsed << 16);
-			s16_sound_advance (nUsed);
+			if (s_bS18)	s18_sound_advance (nUsed);
+			else		s16_sound_advance (nUsed);
 		}
 	}
 }
@@ -982,6 +1339,7 @@ void s16_run_frame (void)
 		{
 			if (s_pGame->nMcu == MCU_8751)	s_Mcu.set_int (0, true);
 			else				McuStandIn ();
+			if (s_bS18)			s18_vdp_vblank (&V.Vdp);
 		}
 		else if (nLine == S16_LINES - 1)	// the scroll registers for the next frame
 		{
@@ -991,6 +1349,7 @@ void s16_run_frame (void)
 		else if (nLine == 0)
 		{
 			if ((s_pGame->nMcu == MCU_8751))	s_Mcu.set_int (0, false);
+			if (s_bS18)			s18_vdp_frame (&V.Vdp);
 		}
 		if (nLine < S16_HEIGHT)
 		{
@@ -1006,6 +1365,7 @@ void s16_run_frame (void)
 				s_pLineCB (s_pLineCtx, nLine, Line);
 			}
 		}
+		M.nMainLineDone = 0;
 		RunLine ();
 		M.nLine = (nLine + 1) % S16_LINES;
 	}
@@ -1093,7 +1453,7 @@ void s16_set_video_sync (void (*pSync) (void *), void *pCtx)	{ s_pSync = pSync; 
 
 int s16_audio_read (int16_t *pDst, int nMaxFrames)
 {
-	return s16_sound_read (pDst, nMaxFrames);
+	return s_bS18 ? s18_sound_read (pDst, nMaxFrames) : s16_sound_read (pDst, nMaxFrames);
 }
 
 // ---- save states -------------------------------------------------------------------
@@ -1106,10 +1466,10 @@ struct TStateHead
 	char Game[16];
 	u32 nSize;
 };
-static const char s_StateMagic[8] = {'S', '1', '6', 'P', 'I', 0, 0, 2};
+static const char s_StateMagic[8] = {'S', '1', '6', 'P', 'I', 0, 0, 3};
 
-// the sound's part has no fixed size: room for it
-#define STATE_SOUND_MAX		0x4000
+// the sound's part has no fixed size: room for it (System 18: 64 KB of wave RAM too)
+#define STATE_SOUND_MAX		0x14000
 
 size_t s16_state_size (void)
 {
@@ -1130,7 +1490,7 @@ int s16_state_save (void *pBuffer, size_t nSize)
 	s16_m68k_state_save (p);				p += s16_m68k_state_size ();
 	memcpy (p, &s_Z80, sizeof s_Z80);			p += sizeof s_Z80;
 	memcpy (p, s_Mcu.state_ptr (), s_Mcu.state_size ());	p += s_Mcu.state_size ();
-	const size_t nSound = s16_sound_state (p, STATE_SOUND_MAX, true);
+	const size_t nSound = s_bS18 ? s18_sound_state (p, STATE_SOUND_MAX, true) : s16_sound_state (p, STATE_SOUND_MAX, true);
 	if (nSound == 0)
 	{
 		return 0;
@@ -1170,17 +1530,13 @@ int s16_state_load (const void *pBuffer, size_t nSize)
 	s16_m68k_state_load (p);				p += s16_m68k_state_size ();
 	memcpy (&s_Z80, p, sizeof s_Z80);			p += sizeof s_Z80;
 	memcpy (s_Mcu.state_ptr (), p, s_Mcu.state_size ());	p += s_Mcu.state_size ();
-	if (s16_sound_state ((u8 *) p, H.nSize - nFixed, false) == 0)
+	if ((s_bS18 ? s18_sound_state ((u8 *) p, H.nSize - nFixed, false) : s16_sound_state ((u8 *) p, H.nSize - nFixed, false)) == 0)
 	{
 		Reset ();
 		return 0;
 	}
 	// what belongs to now, not to the state: the Z80's hooks, pads and switches
-	s_Z80.read_byte = SoundRead;
-	s_Z80.write_byte = SoundWrite;
-	s_Z80.port_in = SoundPortIn;
-	s_Z80.port_out = SoundPortOut;
-	s_Z80.userdata = 0;
+	SoundHooks ();
 	memcpy (M.Player, Player, sizeof Player);
 	M.nSystem = nSystem;
 	M.nDsw = nDsw;

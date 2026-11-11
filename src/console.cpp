@@ -176,7 +176,7 @@ void CKernel::Fatal (int nCode, const char *pMessage)
 		Log ("  Check that the card is FAT32 and that the files are in its root.", COLOR_TEXT);
 		break;
 	case PROJECT_ERR_GAME:
-		Log ("  Copy at least one System 16 game (MAME set, .zip) into the s16pi folder.", COLOR_TEXT);
+		Log ("  Copy at least one System 16 or 18 game (MAME .zip) into the s16pi folder.", COLOR_TEXT);
 		break;
 	case PROJECT_ERR_MEM:
 		Log ("  Not enough memory.", COLOR_TEXT);

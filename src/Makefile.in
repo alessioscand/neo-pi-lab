@@ -42,7 +42,7 @@ CORECFLAGS = $(ARCH) $(COREOPT) -std=gnu11 -fno-math-errno -ffunction-sections -
 
 
 COREWARN = -w				# sources by others, as they are
-s16%.core.o i8751.core.o: COREWARN = -Wall -Wextra -Wshadow	# ours
+s16%.core.o s18%.core.o i8751.core.o: COREWARN = -Wall -Wextra -Wshadow	# ours
 
 %.core.o: %.core.cpp
 	@echo "  CPP   $@"

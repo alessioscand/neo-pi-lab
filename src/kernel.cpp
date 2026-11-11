@@ -137,7 +137,7 @@ TShutdownMode CKernel::Run (void)
 	Log (Line, m_nGames ? COLOR_OK : COLOR_ERR);
 	if (m_nGames == 0)
 	{
-		Fatal (PROJECT_ERR_GAME, "no System 16 game (MAME .zip set) in the s16pi folder");
+		Fatal (PROJECT_ERR_GAME, "no System 16 or 18 game (MAME .zip set) in the s16pi folder");
 	}
 
 	// USB and audio

@@ -13,8 +13,8 @@ repository is the lab: s16-pi is not released yet.
   crimson band; Cyberwire for the game list, Matinee for the rest), drawn
   at 320x224 like the game. Long titles scroll in the list. The logo is a
   placeholder (`CUI::Logo`).
-- **Core** (`core/`): the System 16B machine, written by hand on MAME's
-  logic and checked against MAME 0.264 on the Linux harness.
+- **Core** (`core/`): the System 16B and System 18 machines, written by
+  hand on MAME's logic and checked against MAME 0.264 on the Linux harness.
   - `s16.cpp`: 68000 (Musashi), Z80, the 315-5195 memory mapper, I/O, time
     kept in scanlines (262 per frame, the CPUs take turns 8 times a line),
     save states.
@@ -37,13 +37,25 @@ repository is the lab: s16-pi is not released yet.
     mapper puts it at) and keeps it.
   - ROM boards: 171-5358 (and its small version), 171-5521, 171-5704,
     171-5797 (with its 315-5248 multiplier and 315-5250 compare chips).
+  - System 18 (as MAME's `segas18.cpp`): the mapper's own regions for the
+    shadow, 171-5874 and 171-5987 boards (tile and sprite banks), the
+    315-5296 I/O chip, D. D. Crew's 8255 for players 3 and 4, 57.23 Hz with
+    the Z80 at 8 MHz.
+  - `s18_vdp.cpp`: the 315-5313 VDP (the Mega Drive's): ports, DMA, fill,
+    copy, planes, window, sprites, one line at a time, mixed among the
+    System 16 layers as the board's mixing value says.
+  - `s18_sound.cpp`: two YM3438 (ymfm) and the RF5C68 with its wave RAM.
+    The output is 800 samples per game frame: the game runs at the
+    screen's 60 Hz, 4.8% faster than the board, with the sound in step.
 - **Games**: `core/s16_games.inc` and `dist/sd/s16pi/list.txt` are written
-  by `tools/gen_s16_tables.py` from MAME's `segas16b.cpp`: 57 sets with
-  their ROMs, hardware, DIP switches and what each input bit is. Left out
-  (the script says why for each): bootlegs and Korean boards, sets not
-  working in MAME, System 16C, controls a pad does not have (trackball,
-  dial, analog stick, mahjong, two sticks) and, for now, the games on a
-  vertical monitor. Tough Turf and Wonder Boy III (set 6), whose 8751 is
+  by `tools/gen_s16_tables.py` from MAME's `segas16b.cpp` and `segas18.cpp`:
+  77 sets (57 System 16B, 20 System 18) with their ROMs, hardware, DIP
+  switches and what each input bit is (and the bits that change with a
+  DIP switch, as Moonwalker's coin chutes). Left out (the script says why
+  for each): bootlegs and Korean boards, sets not working in MAME, System
+  16C, controls a pad does not have (trackball, dial, analog stick,
+  mahjong, two sticks, light guns: Laser Ghost, Where's Wally) and, for
+  now, the games on a vertical monitor (Desert Breaker, Hammer Away). Tough Turf and Wonder Boy III (set 6), whose 8751 is
   not dumped, use MAME's stand-ins for it.
 - **Checked against MAME 0.264** (attract mode, a frame every 150, first
   20 seconds): identical pixel for pixel on `altbeast`, `goldnaxe`,
@@ -55,18 +67,22 @@ repository is the lab: s16-pi is not released yet.
   screens of some boots come a few frames earlier than in MAME. The sound
   of the two MC8123 sets follows MAME's after a coin and a start. The
   other 40 sets have not been run: no ROMs here.
-- **Not there yet**: flip screen, hiscores, vertical games, System 18.
+  System 18: `mwalk` (FD1094 + 8751, 171-5874) identical to MAME for the
+  first 37 seconds of attract mode; then its demo play drifts by a few
+  frames for a while and comes back in step. Its sound is at MAME's level.
+  The other System 18 sets have not been run: no ROMs here.
+- **Not there yet**: flip screen, hiscores, vertical games, the VDP's
+  sprite collision flag.
 
 ## Plan
 
-1. System 16B: hiscores, the vertical games (Passing Shot, Time Scanner,
-   Action Fighter ...).
-2. System 18 on top of it (VDP, YM3438 x2, RF5C68).
+1. Hiscores, the vertical games (Passing Shot, Time Scanner, Action
+   Fighter, Desert Breaker ...).
 
 ## Layout
 
 ```
-core/        the System 16B machine (s16_api.h is all the front-end sees)
+core/        the System 16B and 18 machines (s16_api.h is all the front-end sees)
 harness/     Linux test harness: make, ./s16test <roms> altbeast -s 300 -w
 tools/       gen_s16_tables.py: the game tables from MAME's driver
 common/      shared with neo-pi, nes-pi and m92-pi (pads, audio, beam racing, TV filter)

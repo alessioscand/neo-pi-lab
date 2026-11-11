@@ -1,14 +1,19 @@
-s16-pi 0.2.0 - Bare-metal SEGA System 16 emulator for Raspberry Pi 3 and 4
+s16-pi 0.3.0 - Bare-metal SEGA System 16 emulator for Raspberry Pi 3 and 4
 ============================================================================
 
 WORK IN PROGRESS
 
-  A version to try on the Pi: the System 16B games that play with a
-  stick and buttons on a horizontal screen (Altered Beast, Golden Axe,
-  Shinobi, Alien Syndrome, Aurail, Wonder Boy III, ESWAT, Cotton ...),
-  57 MAME sets, protected ones included. Picture, sound, save state,
-  DIP switches and the menus are there. Vertical games, hiscores and
-  System 18 are not yet.
+  A version to try on the Pi: the System 16B and System 18 games that
+  play with a stick and buttons on a horizontal screen (Altered Beast,
+  Golden Axe, Shinobi, Alien Syndrome, Aurail, Wonder Boy III, ESWAT,
+  Cotton ... and on System 18 Shadow Dancer, Moonwalker, Alien Storm,
+  D. D. Crew, Bloxeed, Clutch Hitter), 77 MAME sets, protected ones
+  included. Picture, sound, save state, DIP switches and the menus are
+  there. Vertical games and hiscores are not yet.
+
+  System 18 boards run at 57.23 frames a second: here they run at the
+  screen's 60, a little faster (music a little higher) than the real
+  thing.
 
 SET-UP
 
@@ -16,7 +21,7 @@ SET-UP
      table.
   2. Copy EVERYTHING in this folder to the card's root.
   3. Put your games in the s16pi folder as MAME romsets, one .zip per
-     set with MAME's names (goldnaxe.zip, shinobi4.zip ...), from a
+     set with MAME's names (goldnaxe.zip, mwalk.zip ...), from a
      recent MAME: the protected sets need their .key file. A clone
      needs its parent's zip beside it.
   4. Connect a USB gamepad and the display (on a Pi 4, HDMI 0, next to the
