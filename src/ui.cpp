@@ -60,10 +60,50 @@ void CUI::Background (boolean bFreeze)
 	}
 }
 
-// PLACEHOLDER: the logo is still to be drawn; the name marks its place
+// s16-pi logo, 88x15 (same size as m92-pi's), drawn at 1x above the game list:
+// # outline (black, also inside the holes of the 6 and of the P), o letters and
+// i (off-white), . transparent
+static const char *const s_Logo[] =
+{
+	"#####################################################........###########################",
+	"#ooooooooooooooooooo#ooooooooooo#ooooooooooooooooooo#........#ooooooooooooooooooo#ooooo#",
+	"#ooooooooooooooooooo#ooooooooooo#ooooooooooooooooooo#........#ooooooooooooooooooo#ooooo#",
+	"#ooooooooooooooooooo#ooooooooooo#ooooooooooooooooooo#........#ooooooooooooooooooo#ooooo#",
+	"#ooooo#####################ooooo#ooooo###############........#ooooo#########ooooo#ooooo#",
+	"#ooooo###############.....#ooooo#ooooo########################ooooo#########ooooo#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#oooooooo#ooooooooooooooooooo#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#oooooooo#ooooooooooooooooooo#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#oooooooo#ooooooooooooooooooo#ooooo#",
+	"###############ooooo#.....#ooooo#ooooo#########ooooo##########ooooo###############ooooo#",
+	"###############ooooo#.....#ooooo#ooooo#########ooooo#........#ooooo#.............#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#........#ooooo#.............#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#........#ooooo#.............#ooooo#",
+	"#ooooooooooooooooooo#.....#ooooo#ooooooooooooooooooo#........#ooooo#.............#ooooo#",
+	"#####################.....###########################........#######.............#######",
+};
+#define LOGO_W		88
+#define LOGO_H		15
+#define LOGO_Y		15		// centred in the band above the list panel (y 0-43), the extra pixel above as in m92-pi
+#define LOGO_OUTLINE	0x000000u
+#define LOGO_LETTERS	0xEEF2F3u	// off-white: the selected game stays the brightest thing
+
 void CUI::Logo (void)
 {
-	CText (14, "S16-PI", UI_WHITE, 2, TEXT_SHADOW);
+	const int x0 = (UI_W - LOGO_W) / 2;
+	for (int ly = 0; ly < LOGO_H; ly++)
+	{
+		for (int lx = 0; lx < LOGO_W; lx++)
+		{
+			u32 c;
+			switch (s_Logo[ly][lx])
+			{
+			case '#': c = LOGO_OUTLINE; break;
+			case 'o': c = LOGO_LETTERS; break;
+			default:  continue;
+			}
+			Pixel (x0 + lx, LOGO_Y + ly, c);
+		}
+	}
 }
 
 // a dark panel with a white frame
