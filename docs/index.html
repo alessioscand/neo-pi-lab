@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700&family=Saira:wght@400;600&family=M+PLUS+1:wght@900&display=swap" rel="stylesheet">
+<title>s16-pi – bare-metal Sega System 16 emulator for Raspberry Pi</title>
+<style>
+
+/* ==========================================================================
+   Colours and fonts
+   ========================================================================== */
+:root {
+  --bg:      #03222C;  /* the list screen's petrol, darkened */
+  --grid:    #062F3C;  /* the 16 px grid of the list screen */
+  --panel:   #021A23;
+  --ink:     #DCEEF4;  /* text */
+  --dim:     #7FA3B1;  /* labels, captions */
+  --rule:    #0D3B4B;  /* hairlines */
+  --cyan:    #3BA9DE;  /* the list's values: links */
+  --cyan-bg: rgba(59, 169, 222, .30);
+  --red:     #E8213F;  /* the selection band: accent */
+  --red-bg:  rgba(232, 33, 63, .35);
+  --pink:    #FF4FA8;  /* the heart, as on the siblings */
+
+  --title:   "Saira Condensed", "Saira", sans-serif;
+  --mono:    "Saira", sans-serif;
+  --on:      #fff;
+}
+
+/* ==========================================================================
+   Page
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { color-scheme: dark; background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 32px 32px, var(--bg); scroll-behavior: smooth; overflow-x: clip; }
+
+body {
+  margin: 0;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 64px max(16px, env(safe-area-inset-left, 0px));
+  color: var(--ink);
+  font: 15px/1.65 var(--mono);
+}
+
+.sheet { max-width: 920px; margin: 0 auto; }
+
+a       { color: var(--cyan); text-decoration: none; border-bottom: 1px solid currentColor; }
+a:hover { color: var(--ink); }
+a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+::selection { background: var(--cyan); color: var(--bg); }
+
+.nowrap { white-space: nowrap; }
+code { color: var(--cyan); font-family: var(--mono); }
+kbd  { padding: 2px 6px; border: 1px solid var(--dim); font: 600 12px/1 var(--mono); color: var(--ink); }
+
+/* ==========================================================================
+   Top strip
+   ========================================================================== */
+.strip {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 24px;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+}
+.strip nav     { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.strip a       { color: var(--dim); border: 0; }
+.strip a:hover { color: var(--cyan); }
+.heart         { display: inline-flex; align-items: center; min-height: 20px; }
+.heart svg     { display: block; transition: transform 180ms; }
+.heart:hover svg, .heart:focus-visible svg { transform: scale(1.25); }
+
+/* ==========================================================================
+   Logo, title, download
+   ========================================================================== */
+.hero {
+  display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 40px; align-items: center;
+  padding-block: 56px 48px;
+  border-bottom: 1px solid var(--rule);
+}
+.logo img { display: block; width: 100%; height: auto; }
+.hero h1 {
+  margin: 0 0 26px;
+  font: 400 clamp(22px, 3.6vw, 30px)/1.3 var(--title);
+  letter-spacing: -0.01em; text-wrap: balance;
+}
+
+/* bare-metal / beam-racing, 5.4 s each. The change flickers like a failing
+   sign out in the wasteland; the cell is as wide as the word shown (10 or 11
+   characters of a monospace font), switched while both words are dark, so
+   the line keeps its left edge and a single space before "Irem". */
+.swap      { display: inline-grid; grid-template-columns: minmax(0, 1fr); justify-items: start;
+             width: calc(10ch - .1em); animation: cell 12s linear infinite; }	/* -.01em letter-spacing per character */
+.swap > *  { grid-area: 1 / 1; white-space: nowrap; animation: 12s linear infinite; }
+@keyframes cell {
+  0%, 47.9%  { width: calc(10ch - .1em); }
+  48%, 95.1% { width: calc(11ch - .11em); }
+  95.2%, 100% { width: calc(10ch - .1em); }
+}
+.swap .a   { animation-name: flick-a; }
+.swap .b   { animation-name: flick-b; opacity: 0; }
+@keyframes flick-a {
+  0%, 45%  { opacity: 1; }   45.6% { opacity: .2; }  46.2% { opacity: .9; }  47% { opacity: 0; }
+  47.6%    { opacity: .6; }  48.2%, 95% { opacity: 0; }
+  95.6%    { opacity: .7; }  96.2% { opacity: .1; }  97% { opacity: .9; }  97.6% { opacity: .3; }  98.4%, 100% { opacity: 1; }
+}
+@keyframes flick-b {
+  0%, 47.8% { opacity: 0; }  48.4% { opacity: .7; } 49% { opacity: .1; }  49.8% { opacity: .9; }  50.4% { opacity: .3; }  51.2%, 93% { opacity: 1; }
+  93.6%     { opacity: .2; } 94.2% { opacity: .9; } 95% { opacity: 0; }   95.4% { opacity: .5; }  95.8%, 100% { opacity: 0; }
+}
+
+.download {
+  display: inline-block; margin-bottom: 14px; padding: 10px 18px;
+  border: 0; background: var(--red); color: var(--on); box-shadow: 3px 3px 0 #000;
+  font: 400 16px/1 var(--title); letter-spacing: .1em; text-transform: uppercase;
+  font-weight: 600;
+}
+
+.logo-svg { display: block; width: 100%; height: auto; }
+.logo-ol  { fill: var(--red); }
+.hero { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
+/* il logo con "bare metal" in katakana sotto, come neo-pi e m92-pi */
+.brand { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.brand .logo { width: 100%; max-width: 280px; }
+.brand .jp { font: 900 18px/1 "M PLUS 1", sans-serif; letter-spacing: .8em; margin-right: -.8em;
+             color: #EEF2F3; transform: skewX(-12deg); white-space: nowrap; }
+/* Buy me a coffee: sempre magenta, come il cuore */
+.download.coffee { background: var(--pink); color: #2A0718; }
+.download.coffee svg path { fill: #2A0718; }
+/* hover dei pulsanti: contorno -> pieno */
+.download { background: transparent; color: var(--red); box-shadow: inset 0 0 0 2px var(--red), 3px 3px 0 #000;
+                            transition: transform 60ms, box-shadow 60ms; }
+.download:hover { background: var(--red); color: var(--on); transform: translate(3px, 3px); box-shadow: 0 0 0 #000; }
+.download.coffee { background: transparent; color: var(--pink); box-shadow: inset 0 0 0 2px var(--pink), 3px 3px 0 #000; }
+.download.coffee svg path { fill: var(--pink); }
+.download.coffee:hover { background: var(--pink); color: #2A0718; box-shadow: 0 0 0 #000; }
+.download.coffee:hover svg path { fill: #2A0718; }
+/* in alto niente separatori: si confondono con la griglia, che resta ferma */
+.strip, .hero { border-bottom: 0; }
+html { background-attachment: fixed; }
+
+.download svg   { display: inline-block; margin-right: 10px; vertical-align: -1px; }
+
+.status   { font-size: 13px; color: var(--dim); }
+.status b { font-weight: 400; color: var(--red); animation: led .9s ease-in-out infinite alternate; }	/* pulses softly */
+@keyframes led { from { opacity: 1; } to { opacity: .35; } }
+
+/* ==========================================================================
+   Sections: number and name on the left, content on the right
+   ========================================================================== */
+section {
+  background: var(--panel); margin-top: 16px; padding-inline: 24px; border: 1px solid var(--rule);
+  display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 32px;
+  padding-block: 40px;
+}
+section > h2 {
+  margin: 0;
+  font: 600 15px/1.6 var(--title); letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+  font-weight: 600;
+}
+section > h2 span { color: var(--red); }
+.content { min-width: 0; }
+.content p { margin: 0 0 16px; max-width: 66ch; }
+/* the one key word of a section, marked like a selection on the screen */
+.content strong {
+  padding: 1px 5px; font-weight: 600;
+  background: var(--red); color: var(--on);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+
+h3 {
+  margin: 28px 0 12px;
+  font: 400 15px/1.5 var(--title); letter-spacing: .1em; text-transform: uppercase;
+  font-weight: 600;
+}
+h3:first-child { margin-top: 0; }
+
+/* label / value lists (board, controls) */
+.kv       { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 24px; margin: 0; }
+.kv dt    { color: var(--dim); }
+.kv dd    { margin: 0; font-variant-numeric: tabular-nums; }
+.kv small { font-size: 13px; color: var(--dim); }
+
+/* ==========================================================================
+   Screenshots: 640x480 images shown at 320 px (sharp scanlines on 2x screens)
+   ========================================================================== */
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 320px)); gap: 20px; }
+.shots figure     { margin: 0; }
+.shots img        { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+/* smooth scaling, not pixelated: at 1.5x or 3x screens (most phones) nearest
+   neighbour turns the scanlines into uneven bands */
+.shots figcaption { margin-top: 6px; font-size: 12px; color: var(--dim); }
+
+/* COMPOSITE detail, 320x240 pixels of the 1080p picture: the dot crawl cycles
+   through the 3 burst phases (one per frame on the TV), as on the nes-pi logo */
+.crt            { position: relative; }
+.crt .composite {
+  position: absolute; inset: 1px; pointer-events: none;
+  background: url(img/composite-crawl.png) 0 0 / 100% 300%;
+  image-rendering: pixelated;
+  animation: crawl 150ms steps(3) infinite;
+}
+@keyframes crawl { to { background-position: 0 150%; } }
+/* a light black vignette, like the curved glass of a TV */
+.crt::after {
+  content: ""; position: absolute; inset: 1px; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,.28) 85%, rgba(0,0,0,.55) 100%);
+}
+
+/* ==========================================================================
+   Frame: a button press followed over three frames, two emulators
+   ========================================================================== */
+.timeline { display: grid; grid-template-columns: 110px 132px minmax(0, 1fr); gap: 10px 14px; align-items: center; font-size: 12px; }
+.timeline .label     { color: var(--dim); }
+.timeline .label.ours { color: var(--cyan); }
+.timeline .spacer    { grid-column: 1 / 3; }
+
+.tv { display: block; width: 132px; height: auto; border: 1px solid var(--rule); image-rendering: pixelated; }
+
+.scale      { position: relative; height: 18px; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.scale .s0  { left: 0; transform: none; }
+.scale .s1  { left: 33.333%; }
+.scale .s2  { left: 66.667%; }
+.scale .s3  { left: 100%; transform: translateX(-100%); }
+
+/* one column per frame (16.7 ms) */
+.track {
+  position: relative; height: 30px;
+  border: 1px solid var(--rule);
+  background: repeating-linear-gradient(90deg, transparent 0 calc(33.333% - 1px), var(--rule) calc(33.333% - 1px) 33.333%);
+}
+.event    { position: absolute; top: 3px; bottom: 3px; opacity: .25; transition: opacity .15s; }
+.event.on { opacity: 1; }
+.press    { width: 4px; background: var(--ink); }
+.read     { width: 4px; background: var(--red); }
+/* rendering on the upper half of the track, sending on the lower half: with
+   beam racing the two overlap, line by line */
+.drawn    { bottom: calc(50% + 1px); background: var(--cyan-bg); border: 1px solid var(--cyan); }
+.shown    { top: calc(50% + 1px); background: var(--cyan); }
+.playhead { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--ink); }
+
+.key   { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 12px; color: var(--dim); }
+.key i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; }
+.key .press, .key .read, .key .drawn, .key .shown { position: static; width: 12px; height: 12px; }
+
+.readout { min-height: 1.6em; margin-top: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   Games
+   ========================================================================== */
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th {
+  padding: 0 16px 8px 0; border-bottom: 1px solid var(--rule); text-align: left;
+  font: 400 13px/1.6 var(--title); letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+  font-weight: 600;
+}
+td                { padding: 7px 16px 7px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td:nth-child(2)   { white-space: nowrap; }	/* game titles on one line; the sets wrap */
+td.sets           { color: var(--dim); }
+.tate             { color: var(--dim); }  /* vertical game */
+tr:hover td.sets  { color: var(--cyan); }
+.note             { font-size: 13px; color: var(--dim); }
+
+/* ==========================================================================
+   Install
+   ========================================================================== */
+.steps             { margin: 0; padding-left: 22px; }
+.steps li          { margin-bottom: 10px; }
+.steps li::marker  { color: var(--red); }
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+/* credits: laid out like a section, smaller, not in the menu */
+footer {
+  display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 32px;
+  padding-top: 32px; font-size: 12px; color: var(--dim);
+}
+footer h2 {
+  margin: 0;
+  font: 400 13px/1.9 var(--title); letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+  font-weight: 600;
+}
+footer .lines { display: grid; gap: 8px; min-width: 0; }
+.siblings { margin-top: 18px !important; font-size: 13px; color: var(--dim); }
+.human { color: var(--pink); }
+.siblings small { font-size: 11px; letter-spacing: .06em; color: var(--dim); }
+
+/* ==========================================================================
+   Small screens, reduced motion
+   ========================================================================== */
+@media (max-width: 720px) {
+  /* menu on one line, spread edge to edge */
+  .strip     { font-size: 11px; letter-spacing: .04em; }
+  .strip nav { flex-wrap: nowrap; justify-content: space-between; width: 100%; gap: 0 8px; }
+  .hero     { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 36px; }
+  .logo     { max-width: none; }	/* the logo spans the column on a phone */
+  /* ROMs on a phone: no Year column; each game is one row of title, players
+     and buttons, with its MAME sets on a line below, so the table neither
+     scrolls sideways nor grows into a long column of set names */
+  #games th:first-child, #games td:first-child { display: none; }
+  #games tr { display: grid; grid-template-columns: minmax(0, 1fr) 3.5em 3.5em; column-gap: 8px; border-bottom: 1px solid var(--rule); }
+  #games th, #games td { padding: 0; border: 0; }
+  #games tbody tr { padding-block: 9px; }
+  #games thead tr { padding-bottom: 8px; }
+  #games th:last-child { display: none; }
+  #games td:nth-child(2) { white-space: normal; }
+  #games td.sets { grid-column: 1 / -1; margin-top: 2px; font-size: 12.5px; }
+  section, footer { grid-template-columns: minmax(0, 1fr); }
+  section   { padding-block: 32px; }
+  .timeline { grid-template-columns: 96px minmax(0, 1fr); }
+  .timeline .spacer { grid-column: 1; }
+  .timeline .label  { grid-column: 1 / 3; }
+  .tv       { width: 96px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html   { scroll-behavior: auto; }
+  html.hw body::after, html.hw-shake .sheet { animation: none; }
+  .event { transition: none; }
+  .status b, .swap, .swap .a, .crt .composite { animation: none; }
+  .swap .b { display: none; }
+  .heart svg { transition: none; }
+}
+
+/* s16-pi */
+.hero h1 { font-family: var(--title); font-weight: 700; letter-spacing: 0; }
+
+.sys { white-space: nowrap; color: var(--cyan); }
+.shot-slot { display: grid; place-items: center; aspect-ratio: 4 / 3; border: 1px dashed var(--rule);
+             color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header class="strip">
+  <nav aria-label="Sections">
+    <a href="#board">Board</a>
+    <a href="#screens">Attract</a>
+    <a href="#frame">Beam</a>
+    <a href="#games">Games</a>
+    <a href="#install">Insert coin</a>
+    <a href="#controls">Controls</a>
+    <a class="heart" href="#support" aria-label="Support" title="Support"><svg aria-hidden="true" width="21" height="18" viewBox="0 0 7 6" shape-rendering="crispEdges"><path d="M1 0h2v1h1V0h2v1h1v2h-1v1h-1v1h-1v1H3V5H2V4H1V3H0V1h1z" fill="#FF4FA8"/></svg></a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="brand"><div class="logo">
+<svg class="logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 528 90" width="528" height="90">
+<title>s16-pi</title>
+<g transform="scale(6)" shape-rendering="crispEdges">
+<path fill="#EEF2F3" d="M1 1h19v1h-19zM21 1h11v1h-11zM33 1h19v1h-19zM62 1h19v1h-19zM82 1h5v1h-5zM1 2h19v1h-19zM21 2h11v1h-11zM33 2h19v1h-19zM62 2h19v1h-19zM82 2h5v1h-5zM1 3h19v1h-19zM21 3h11v1h-11zM33 3h19v1h-19zM62 3h19v1h-19zM82 3h5v1h-5zM1 4h5v1h-5zM27 4h5v1h-5zM33 4h5v1h-5zM62 4h5v1h-5zM76 4h5v1h-5zM82 4h5v1h-5zM1 5h5v1h-5zM27 5h5v1h-5zM33 5h5v1h-5zM62 5h5v1h-5zM76 5h5v1h-5zM82 5h5v1h-5zM1 6h19v1h-19zM27 6h5v1h-5zM33 6h19v1h-19zM53 6h8v1h-8zM62 6h19v1h-19zM82 6h5v1h-5zM1 7h19v1h-19zM27 7h5v1h-5zM33 7h19v1h-19zM53 7h8v1h-8zM62 7h19v1h-19zM82 7h5v1h-5zM1 8h19v1h-19zM27 8h5v1h-5zM33 8h19v1h-19zM53 8h8v1h-8zM62 8h19v1h-19zM82 8h5v1h-5zM15 9h5v1h-5zM27 9h5v1h-5zM33 9h5v1h-5zM47 9h5v1h-5zM62 9h5v1h-5zM82 9h5v1h-5zM15 10h5v1h-5zM27 10h5v1h-5zM33 10h5v1h-5zM47 10h5v1h-5zM62 10h5v1h-5zM82 10h5v1h-5zM1 11h19v1h-19zM27 11h5v1h-5zM33 11h19v1h-19zM62 11h5v1h-5zM82 11h5v1h-5zM1 12h19v1h-19zM27 12h5v1h-5zM33 12h19v1h-19zM62 12h5v1h-5zM82 12h5v1h-5zM1 13h19v1h-19zM27 13h5v1h-5zM33 13h19v1h-19zM62 13h5v1h-5zM82 13h5v1h-5z"/>
+<path fill="#000000" d="M0 0h53v1h-53zM61 0h27v1h-27zM0 1h1v1h-1zM20 1h1v1h-1zM32 1h1v1h-1zM52 1h1v1h-1zM61 1h1v1h-1zM81 1h1v1h-1zM87 1h1v1h-1zM0 2h1v1h-1zM20 2h1v1h-1zM32 2h1v1h-1zM52 2h1v1h-1zM61 2h1v1h-1zM81 2h1v1h-1zM87 2h1v1h-1zM0 3h1v1h-1zM20 3h1v1h-1zM32 3h1v1h-1zM52 3h1v1h-1zM61 3h1v1h-1zM81 3h1v1h-1zM87 3h1v1h-1zM0 4h1v1h-1zM6 4h21v1h-21zM32 4h1v1h-1zM38 4h15v1h-15zM61 4h1v1h-1zM67 4h9v1h-9zM81 4h1v1h-1zM87 4h1v1h-1zM0 5h1v1h-1zM6 5h15v1h-15zM26 5h1v1h-1zM32 5h1v1h-1zM38 5h24v1h-24zM67 5h9v1h-9zM81 5h1v1h-1zM87 5h1v1h-1zM0 6h1v1h-1zM20 6h1v1h-1zM26 6h1v1h-1zM32 6h1v1h-1zM52 6h1v1h-1zM61 6h1v1h-1zM81 6h1v1h-1zM87 6h1v1h-1zM0 7h1v1h-1zM20 7h1v1h-1zM26 7h1v1h-1zM32 7h1v1h-1zM52 7h1v1h-1zM61 7h1v1h-1zM81 7h1v1h-1zM87 7h1v1h-1zM0 8h1v1h-1zM20 8h1v1h-1zM26 8h1v1h-1zM32 8h1v1h-1zM52 8h1v1h-1zM61 8h1v1h-1zM81 8h1v1h-1zM87 8h1v1h-1zM0 9h15v1h-15zM20 9h1v1h-1zM26 9h1v1h-1zM32 9h1v1h-1zM38 9h9v1h-9zM52 9h10v1h-10zM67 9h15v1h-15zM87 9h1v1h-1zM0 10h15v1h-15zM20 10h1v1h-1zM26 10h1v1h-1zM32 10h1v1h-1zM38 10h9v1h-9zM52 10h1v1h-1zM61 10h1v1h-1zM67 10h1v1h-1zM81 10h1v1h-1zM87 10h1v1h-1zM0 11h1v1h-1zM20 11h1v1h-1zM26 11h1v1h-1zM32 11h1v1h-1zM52 11h1v1h-1zM61 11h1v1h-1zM67 11h1v1h-1zM81 11h1v1h-1zM87 11h1v1h-1zM0 12h1v1h-1zM20 12h1v1h-1zM26 12h1v1h-1zM32 12h1v1h-1zM52 12h1v1h-1zM61 12h1v1h-1zM67 12h1v1h-1zM81 12h1v1h-1zM87 12h1v1h-1zM0 13h1v1h-1zM20 13h1v1h-1zM26 13h1v1h-1zM32 13h1v1h-1zM52 13h1v1h-1zM61 13h1v1h-1zM67 13h1v1h-1zM81 13h1v1h-1zM87 13h1v1h-1zM0 14h21v1h-21zM26 14h27v1h-27zM61 14h7v1h-7zM81 14h7v1h-7z"/>
+</g>
+</svg>
+</div><div class="jp" lang="ja" aria-hidden="true">ベアメタル</div></div>
+  <div>
+    <h1><span class="swap"><span class="a">bare-metal</span><span class="b" aria-hidden="true">beam-racing</span></span> Sega System 16 &amp; 18 emulator for Raspberry Pi.</h1>
+    <a class="download" href="#">Download now</a>
+    <div class="status">
+      <span class="nowrap">for RPi 3 &amp; 4</span> ·
+      <span class="nowrap">free · GPLv3</span> ·
+      <span class="nowrap"><b>●</b> tested on hardware</span>
+    </div>
+  </div>
+</div>
+
+<section id="board">
+  <h2><span>01</span> Board</h2>
+  <div class="content">
+    <h3>System 16 · 18</h3>
+    <dl class="kv">
+      <dt>Main CPU</dt>   <dd>68000 · 10 MHz <small>(FD1089 / FD1094 decrypted with each game's key)</small></dd>
+      <dt>Sound CPU</dt>  <dd>Z80 · 4–8 MHz</dd>
+      <dt>Sound</dt>      <dd>16A: YM2151 + 8048 DAC · 16B: YM2151 + µPD7759 · 18: 2 × YM3438 + RF5C68</dd>
+      <dt>Video</dt>      <dd>two tile layers, text layer, 128 sprites · 18: plus the Mega Drive VDP (315-5313)</dd>
+      <dt>Picture</dt>    <dd>320 × 224 · 60.05 Hz</dd>
+    </dl>
+    <h3>RPi</h3>
+    <dl class="kv">
+      <dt>Core 0</dt> <dd>68000 · Z80 · sound chips <small>(+ pads and UI)</small></dd>
+      <dt>Core 1</dt> <dd>tiles · sprites · VDP <small>(draws each line just before it is sent)</small></dd>
+      <dt>Core 2</dt> <dd>COMPOSITE filter <small>(when chosen)</small></dd>
+      <dt>Output</dt> <dd>HDMI 1080p (4×) or 720p (3×), integer scaling · 48 kHz audio</dd>
+      <dt>Pads</dt>   <dd>USB, polled every 1 ms · up to 4 players</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="screens">
+  <h2><span>02</span> Attract mode</h2>
+  <div class="content">
+    <div class="shots">
+      <figure><img src="img/list.png" width="640" height="480" alt="Game list"><figcaption>Game list</figcaption></figure>
+      <figure><div class="shot-slot">screenshot</div><figcaption>Golden Axe</figcaption></figure>
+      <figure><div class="shot-slot">screenshot</div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
+      <figure><img src="img/options.png" width="640" height="480" alt="Options menu"><figcaption>Options</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="frame">
+  <h2><span>03</span> Beam racing</h2>
+  <div class="content">
+    <p>s16-pi uses <strong>beam racing</strong> to send each scanline to the TV as soon as it is rendered, in sync with the display's refresh. An emulator with double buffering instead waits for the entire frame to be rendered before presenting it, adding up to one frame of latency.</p>
+    <div class="timeline">
+      <div class="spacer"></div>
+      <div class="scale" aria-hidden="true"><span class="s0">0 ms</span><span class="s1">16.7</span><span class="s2">33.4</span><span class="s3">50 ms</span></div>
+      <div class="label ours">beam racing</div>
+      <canvas class="tv" width="320" height="240" data-shown=".364"></canvas>
+      <div class="track">
+        <div class="event press" data-at=".08"></div>
+        <div class="event read"  data-at=".3333"></div>
+        <div class="event drawn" data-at=".336" data-width=".31"></div>
+        <div class="event shown" data-at=".364" data-width=".3333"></div>
+        <div class="playhead"></div>
+      </div>
+      <div class="label">double buffering</div>
+      <canvas class="tv" width="320" height="240" data-shown=".6667"></canvas>
+      <div class="track">
+        <div class="event press" data-at=".08"></div>
+        <div class="event read"  data-at=".3333"></div>
+        <div class="event drawn" data-at=".336"  data-width=".12"></div>
+        <div class="event shown" data-at=".6667" data-width=".3333"></div>
+        <div class="playhead"></div>
+      </div>
+    </div>
+    <div class="key">
+      <span><i class="press"></i>button pressed</span>
+      <span><i class="read"></i>the game reads the pads</span>
+      <span><i class="drawn"></i>frame rendered</span>
+      <span><i class="shown"></i>frame sent to the TV, line by line</span>
+    </div>
+    <div class="readout" aria-live="off"></div>
+  </div>
+</section>
+
+<section id="games">
+  <h2><span>04</span> Games</h2>
+  <div class="content">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Year</th><th>Game</th><th>System</th><th>MAME sets</th></tr></thead>
+        <tbody>
+          <tr><td>1986</td><td>Alex Kidd: The Lost Stars</td><td class="sys">16A</td><td class="sets">alexkidd alexkidd1</td></tr>
+          <tr><td>1986</td><td>Fantasy Zone</td><td class="sys">16A</td><td class="sets">fantzone fantzone1 fantzonep fantzonee</td></tr>
+          <tr><td>1986</td><td>Quartet</td><td class="sys">16A</td><td class="sets">quartet quarteta quartet2 quartet2a</td></tr>
+          <tr><td>1987</td><td>Alien Syndrome</td><td class="sys">16A · 16B</td><td class="sets">aliensyn aliensyn2 aliensyn3 aliensyn5 aliensyn7 aliensynj</td></tr>
+          <tr><td>1987</td><td>Dunk Shot</td><td class="sys">16B</td><td class="sets">dunkshot dunkshota dunkshoto</td></tr>
+          <tr><td>1987</td><td>SDI</td><td class="sys">16A · 16B</td><td class="sets">sdi sdia defense sdib</td></tr>
+          <tr><td>1987</td><td>Shinobi</td><td class="sys">16A · 16B</td><td class="sets">shinobi shinobi1 … shinobi6</td></tr>
+          <tr><td>1988</td><td>Altered Beast</td><td class="sys">16B</td><td class="sets">altbeast altbeastj altbeast2 … altbeast6</td></tr>
+          <tr><td>1988</td><td>Dynamite Dux</td><td class="sys">16B</td><td class="sets">ddux dduxj ddux1</td></tr>
+          <tr><td>1988</td><td>Tetris</td><td class="sys">16A · 16B</td><td class="sets">tetris tetris1 tetris2 tetris3</td></tr>
+          <tr><td>1988</td><td>Wonder Boy III – Monster Lair</td><td class="sys">16A · 16B</td><td class="sets">wb3 wb31 wb32 … wb35</td></tr>
+          <tr><td>1989</td><td>Bloxeed</td><td class="sys">18</td><td class="sets">bloxeed bloxeeda</td></tr>
+          <tr><td>1989</td><td>Cyber Police ESWAT</td><td class="sys">16B</td><td class="sets">eswat eswatu eswatj eswatj1</td></tr>
+          <tr><td>1989</td><td>Golden Axe</td><td class="sys">16B</td><td class="sets">goldnaxe goldnaxeu goldnaxej goldnaxe1 … goldnaxe3</td></tr>
+          <tr><td>1989</td><td>Shadow Dancer</td><td class="sys">18</td><td class="sets">shdancer shdancerj shdancer1</td></tr>
+          <tr><td>1989</td><td>Tough Turf</td><td class="sys">16B</td><td class="sets">tturf tturfu</td></tr>
+          <tr><td>1990</td><td>Alien Storm</td><td class="sys">18</td><td class="sets">astorm astorm3 astormu astormj</td></tr>
+          <tr><td>1990</td><td>Aurail</td><td class="sys">16B</td><td class="sets">aurail aurail1 aurailj</td></tr>
+          <tr><td>1990</td><td>Laser Ghost</td><td class="sys">18</td><td class="sets">lghost lghostu lghostj</td></tr>
+          <tr><td>1990</td><td>Michael Jackson’s Moonwalker</td><td class="sys">18</td><td class="sets">mwalk mwalku mwalkj</td></tr>
+          <tr><td>1991</td><td>Cotton</td><td class="sys">16B</td><td class="sets">cotton cottonu cottonj cottonja</td></tr>
+          <tr><td>1991</td><td>D. D. Crew</td><td class="sys">18</td><td class="sets">ddcrew ddcrewu ddcrewj …</td></tr>
+          <tr><td>1991</td><td>Riot City</td><td class="sys">16B</td><td class="sets">riotcity</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Horizontal games only. ROMs are found by CRC, so sets from other MAME versions work too. Games are not included.</p>
+  </div>
+</section>
+
+<section id="install">
+  <h2><span>05</span> Insert coin</h2>
+  <div class="content">
+    <ol class="steps">
+      <li>Format a micro SD card as FAT32 and copy everything from the zip to its root.</li>
+      <li>Put your System 16 and 18 games in the <code>s16pi</code> folder as MAME zips. A clone also needs its parent's zip.</li>
+      <li>Connect a USB pad and the TV, insert the card, switch on.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="controls">
+  <h2><span>06</span> Controls</h2>
+  <div class="content">
+    <dl class="kv">
+      <dt><kbd>A</kbd> <kbd>B</kbd> <kbd>C</kbd></dt> <dd>buttons 1–3</dd>
+      <dt><kbd>Select</kbd></dt>                    <dd>coin · hold 1 s for the in-game menu</dd>
+      <dt><kbd>Select</kbd> + <kbd>A</kbd></dt>     <dd>screenshot</dd>
+      <dt><kbd>Select</kbd> + <kbd>B</kbd></dt>     <dd>lazy finger (auto fire)</dd>
+      <dt><kbd>Select</kbd> + <kbd>C</kbd></dt>     <dd>status line</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="support">
+  <h2><span>07</span> Support</h2>
+  <div class="content">
+    <p>s16-pi is <strong>free</strong>. If you enjoy it, you can buy me a <em lang="it">crema caffè</em> :)</p>
+    <a class="download coffee" href="#"><svg aria-hidden="true" width="14" height="12" viewBox="0 0 7 6" shape-rendering="crispEdges"><path d="M1 0h2v1h1V0h2v1h1v2h-1v1h-1v1h-1v1H3V5H2V4H1V3H0V1h1z"/></svg>Buy me a coffee</a>
+    <p class="siblings">Siblings: <a href="#">neo-pi</a> <small>NEOGEO</small> // <a href="#">nes-pi</a> <small>NES</small> // <a href="#">m92-pi</a> <small>IREM M92</small></p>
+  </div>
+</section>
+
+<footer>
+  <h2>Credits</h2>
+  <div class="lines">
+    <div>s16-pi is a <span class="human">human-led</span>, vibe-coded experiment by A. Scanderebech · GPLv3 · <a href="#">Source</a></div>
+    <div>Built on MAME, Circle, miniz and blargg's NTSC filter.</div>
+    <div>Sega is a trademark of its owner.</div>
+  </div>
+</footer>
+
+</div>
+<script>
+
+/* bare-metal / beam-racing: con un font proporzionale la cella prende
+   la larghezza misurata di ciascuna parola */
+document.fonts.ready.then(() => {
+  const a = document.querySelector('.swap .a'), b = document.querySelector('.swap .b');
+  const wa = a.getBoundingClientRect().width, wb = b.getBoundingClientRect().width;
+  const st = document.createElement('style');
+  st.textContent = `.swap { width: ${wa}px; animation-name: cellpx; }
+    @keyframes cellpx { 0%, 47.9% { width: ${wa}px; } 48%, 95.1% { width: ${wb}px; } 95.2%, 100% { width: ${wa}px; } }`;
+  document.head.appendChild(st);
+});
+/* Frame animation: one pass over 50 ms (three frames) every 6 s. Each event
+   lights up when the playhead reaches it; each small TV shows the frame
+   before the press until its picture arrives, then the answer (Claude's
+   kick) scanned in from the top. */
+(() => {
+  const PERIOD = 6;                  // seconds per pass
+  const FRAME = 1 / 3;               // one frame, as a fraction of the pass
+  const before = new Image(); before.src = 'img/tv-before.png';
+  const after  = new Image(); after.src  = 'img/tv-after.png';
+
+  const tracks  = [...document.querySelectorAll('.track')];
+  const tvs     = [...document.querySelectorAll('.tv')];
+  const readout = document.querySelector('.readout');
+
+  for (const e of document.querySelectorAll('.event')) {
+    e.style.left = (e.dataset.at * 100) + '%';
+    if (e.dataset.width) e.style.width = (e.dataset.width * 100) + '%';
+  }
+
+  function drawTV(canvas, f) {
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, 320, 240);
+    if (!before.complete || !after.complete) return;
+    g.drawImage(before, 0, 0);
+    const rows = Math.max(0, Math.min(240, Math.floor((f - canvas.dataset.shown) / FRAME * 240)));
+    if (rows > 0) {
+      g.drawImage(after, 0, 0, 320, rows, 0, 0, 320, rows);
+      if (rows < 240) {                  // the line being sent
+        g.fillStyle = '#000';
+        g.fillRect(0, rows - 2, 320, 8);
+        g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--red').trim();
+        g.fillRect(0, rows, 320, 4);
+      }
+    }
+  }
+
+  function draw(f) {                     // f: 0..1 over 50 ms
+    for (const t of tracks) {
+      t.querySelector('.playhead').style.left = (f * 100) + '%';
+      for (const e of t.querySelectorAll('.event')) e.classList.toggle('on', e.dataset.at <= f);
+    }
+    tvs.forEach(c => drawTV(c, f));
+    const [ours, theirs] = tvs.map(c => +c.dataset.shown);
+    readout.textContent = (f * 50).toFixed(1) + ' ms' +
+      (f >= theirs ? ' · with double buffering the answer starts, '
+                     + ((theirs - ours) * 50).toFixed(1) + ' ms later'
+       : f >= ours ? ' · with beam racing the answer is on its way to the TV' : '');
+  }
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    after.onload = before.onload = () => draw(.7);
+    draw(.7);
+    return;
+  }
+  const t0 = performance.now();
+  (function tick(now) {
+    draw(((now - t0) / 1000 % PERIOD) / PERIOD);
+    requestAnimationFrame(tick);
+  })(t0);
+})();
+</script>
+</body>
+</html>
