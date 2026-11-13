@@ -12,12 +12,12 @@
    Colours and fonts
    ========================================================================== */
 :root {
-  --bg:      #03222C;  /* the list screen's petrol, darkened */
-  --grid:    #062F3C;  /* the 16 px grid of the list screen */
-  --panel:   #021A23;
+  --bg:      #032333;  /* the list screen's petrol, darkened and a little bluer */
+  --grid:    #073147;  /* the 16 px grid of the list screen */
+  --panel:   #021B28;
   --ink:     #DCEEF4;  /* text */
   --dim:     #7FA3B1;  /* labels, captions */
-  --rule:    #0D3B4B;  /* hairlines */
+  --rule:    #0D3F57;  /* hairlines */
   --cyan:    #3BA9DE;  /* the list's values: links */
   --cyan-bg: rgba(59, 169, 222, .30);
   --red:     #E8213F;  /* the selection band: accent */
@@ -121,16 +121,16 @@ kbd  { padding: 2px 6px; border: 1px solid var(--dim); font: 600 12px/1 var(--mo
 .hero { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
 /* il logo con "bare metal" in katakana sotto, come neo-pi e m92-pi */
 .brand { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.brand .logo { width: 100%; max-width: 280px; }
+.brand .logo { width: 100%; max-width: 280px; filter: drop-shadow(5px 5px 0 var(--cyan)); }
 .brand .jp { font: 900 18px/1 "M PLUS 1", sans-serif; letter-spacing: .8em; margin-right: -.8em;
              color: #EEF2F3; transform: skewX(-12deg); white-space: nowrap; }
 /* Buy me a coffee: sempre magenta, come il cuore */
 .download.coffee { background: var(--pink); color: #2A0718; }
 .download.coffee svg path { fill: #2A0718; }
 /* hover dei pulsanti: contorno -> pieno */
-.download { background: transparent; color: var(--red); box-shadow: inset 0 0 0 2px var(--red), 3px 3px 0 #000;
+.download { background: transparent; color: var(--cyan); box-shadow: inset 0 0 0 2px var(--cyan), 3px 3px 0 #000;
                             transition: transform 60ms, box-shadow 60ms; }
-.download:hover { background: var(--red); color: var(--on); transform: translate(3px, 3px); box-shadow: 0 0 0 #000; }
+.download:hover { background: var(--cyan); color: var(--bg); transform: translate(3px, 3px); box-shadow: 0 0 0 #000; }
 .download.coffee { background: transparent; color: var(--pink); box-shadow: inset 0 0 0 2px var(--pink), 3px 3px 0 #000; }
 .download.coffee svg path { fill: var(--pink); }
 .download.coffee:hover { background: var(--pink); color: #2A0718; box-shadow: 0 0 0 #000; }
@@ -150,6 +150,7 @@ html { background-attachment: fixed; }
    ========================================================================== */
 section {
   background: var(--panel); margin-top: 16px; padding-inline: 24px; border: 1px solid var(--rule);
+  box-shadow: 0 0 44px 4px rgba(70, 170, 230, .13);	/* a soft light around the boxes */
   display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 32px;
   padding-block: 40px;
 }
@@ -164,7 +165,7 @@ section > h2 span { color: var(--red); }
 /* the one key word of a section, marked like a selection on the screen */
 .content strong {
   padding: 1px 5px; font-weight: 600;
-  background: var(--red); color: var(--on);
+  background: rgba(232, 33, 63, .62); color: var(--on);
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 
@@ -182,7 +183,7 @@ h3:first-child { margin-top: 0; }
 .kv small { font-size: 13px; color: var(--dim); }
 
 /* ==========================================================================
-   Screenshots: 640x480 images shown at 320 px (sharp scanlines on 2x screens)
+   Screenshots: 640x448 images (the picture only) shown at 320 px (sharp scanlines on 2x screens)
    ========================================================================== */
 .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 320px)); gap: 20px; }
 .shots figure     { margin: 0; }
@@ -392,10 +393,10 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
   <h2><span>02</span> Attract mode</h2>
   <div class="content">
     <div class="shots">
-      <figure><img src="img/list.png" width="640" height="480" alt="Game list"><figcaption>Game list</figcaption></figure>
-      <figure><img src="img/golden-axe.png" width="640" height="480" alt="Golden Axe" loading="lazy"><figcaption>Golden Axe (System 16)</figcaption></figure>
-      <figure><img src="img/moonwalker.png" width="640" height="480" alt="Michael Jackson's Moonwalker" loading="lazy"><figcaption>Michael Jackson's Moonwalker (System 18)</figcaption></figure>
-      <figure><img src="img/options.png" width="640" height="480" alt="Options menu"><figcaption>Options</figcaption></figure>
+      <figure><img src="img/list.png" width="640" height="448" alt="Game list"><figcaption>Game list</figcaption></figure>
+      <figure><img src="img/golden-axe.png" width="640" height="448" alt="Golden Axe" loading="lazy"><figcaption>Golden Axe (System 16)</figcaption></figure>
+      <figure><img src="img/moonwalker.png" width="640" height="448" alt="Michael Jackson's Moonwalker" loading="lazy"><figcaption>Michael Jackson's Moonwalker (System 18)</figcaption></figure>
+      <figure><img src="img/options.png" width="640" height="448" alt="Options menu"><figcaption>Options</figcaption></figure>
     </div>
   </div>
 </section>
