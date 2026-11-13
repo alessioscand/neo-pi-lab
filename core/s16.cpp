@@ -253,6 +253,11 @@ static void CryptFree (void)
 	}
 }
 
+// pages decrypted so far: a few ms each, so a frame that decrypts is slow for
+// a reason of its own (see s16_slow_work)
+static unsigned s_nDecrypted;
+unsigned s16_slow_work (void)	{ return s_nDecrypted; }
+
 static u8 Fd1094State (void)	{ return M.bFdIrq ? s16_fd1094_irq_state (s_pRegion[RGN_KEY]) : M.nFdState; }
 
 // the chip changes state: every ROM page is looked up again at its next fetch
@@ -282,6 +287,7 @@ static bool PageDecrypt (TPage &P, unsigned nPage)
 				Fd1094Changed ();
 			}
 			s16_fd1094_decrypt (s_pRegion[RGN_KEY], Fd1094State (), P.nRom, pSrc, p, 0x10000);
+			s_nDecrypted++;
 		}
 		P.pOpcodes = p;
 		return true;
@@ -293,6 +299,7 @@ static bool PageDecrypt (TPage &P, unsigned nPage)
 		if (!D.pData) D.pData = (u8 *) malloc (0x10000);
 		if (!D.pOpcodes || !D.pData) return false;
 		D.nRom = P.nRom;
+		s_nDecrypted++;
 		s16_fd1089_decrypt (s_pGame->nCpu == CPU_FD1089B, s_pRegion[RGN_KEY], nPage << 16, pSrc,
 				    D.pOpcodes, D.pData, 0x10000);
 	}

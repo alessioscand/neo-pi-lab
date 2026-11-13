@@ -62,6 +62,9 @@ void s16_reset (void);
 
 /* one frame: from the start of the vertical blank (line 224) to the next */
 void s16_run_frame (void);
+// a count that grows when the core does one-off slow work (an encrypted page of
+// program decrypted the first time it runs): such a frame is not a measure of the game
+unsigned s16_slow_work (void);
 
 /* players 0-3, active high: bit 0 right, 1 left, 2 down, 3 up, 4 button 1,
  * 5 button 2, 6 button 3 */

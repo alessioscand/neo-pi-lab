@@ -1,4 +1,4 @@
-s16-pi 0.3.0 - Bare-metal SEGA System 16 emulator for Raspberry Pi 3 and 4
+s16-pi 0.3.1 - Bare-metal SEGA System 16 emulator for Raspberry Pi 3 and 4
 ============================================================================
 
 WORK IN PROGRESS

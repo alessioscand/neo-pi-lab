@@ -469,7 +469,12 @@ unsigned CKernel::PlayFrame (boolean bRace, boolean bScreenshot, unsigned *pT0, 
 		g_Race.nWaitTicks = 0;
 		s16_set_line_hook (RaceLineHook, 0);
 	}
+	const unsigned nSlow = s16_slow_work ();
 	s16_run_frame ();
+	if (s16_slow_work () != nSlow)
+	{
+		*pOddFrame = TRUE;		// pages decrypted: the beam racing timings start again
+	}
 	FrameSync ();
 	HiTick ();
 	if (bRace)
