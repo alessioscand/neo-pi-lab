@@ -341,8 +341,8 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
 .lgA p.lgs { color: #FFE9C7; }
 .lgA .tag { display: inline-block; margin-bottom: 12px; padding: 4px 10px; background: #1B0208; color: #FFD23F; font: 700 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
 .lgA .pile { position: relative; height: 360px; margin-right: -40px; }
-.lgA .pile .ph { position: absolute; width: 70%; padding: 4px; background: #FFF3D6; box-shadow: 6px 6px 0 #3A0412;
-  outline: 1px solid transparent; }	/* the turned frame keeps smooth edges */
+.lgA .pile .ph { position: absolute; width: 70%; filter: drop-shadow(6px 6px 0 #3A0412); }
+.lgA .pile .ph .card { display: block; padding: 7px; background: #FFF3D6; clip-path: polygon(0.00% 0.00%, 4.99% 1.03%, 13.01% 0.78%, 17.69% 1.15%, 26.15% 0.82%, 31.27% 0.49%, 35.64% 0.65%, 44.07% 0.29%, 51.10% 0.49%, 55.25% 0.26%, 64.37% 1.09%, 70.16% 0.94%, 73.25% 0.60%, 81.24% 0.35%, 89.19% 0.65%, 92.46% 1.18%, 100.00% 0.00%, 99.64% 7.85%, 99.25% 12.70%, 99.38% 18.69%, 99.57% 23.26%, 98.76% 30.26%, 98.86% 36.41%, 98.64% 45.23%, 98.89% 50.99%, 99.10% 57.11%, 99.64% 62.41%, 98.81% 67.63%, 98.69% 76.45%, 99.30% 80.74%, 99.25% 87.07%, 98.61% 93.32%, 100.00% 100.00%, 91.98% 99.68%, 88.32% 98.61%, 81.24% 99.21%, 75.19% 98.90%, 67.71% 99.07%, 62.71% 99.05%, 55.05% 99.59%, 49.43% 98.69%, 43.17% 99.08%, 36.77% 99.67%, 29.62% 98.82%, 26.04% 99.34%, 19.44% 98.99%, 14.00% 98.65%, 5.90% 98.61%, 0.00% 100.00%, 1.35% 94.09%, 1.26% 87.47%, 0.66% 80.30%, 1.25% 73.73%, 0.29% 69.89%, 1.13% 62.44%, 1.21% 54.57%, 0.52% 49.21%, 0.71% 42.51%, 0.29% 36.89%, 1.28% 33.06%, 1.10% 24.92%, 0.51% 20.47%, 0.84% 13.36%, 0.24% 5.17%); }	/* the turned frame keeps smooth edges */
 .lgA .pile .ph img { width: 100%; }
 .lgA .pile .ph:nth-child(1) { left: -4%; top: 0; transform: rotate(-6deg); }
 .lgA .pile .ph:nth-child(2) { right: 0; top: 34px; transform: rotate(5deg); }
@@ -353,6 +353,8 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
   opacity: .28; mix-blend-mode: hard-light; filter: blur(1px) saturate(.6); }	/* the street, faint, as a texture */
 .lgA::after { content: ""; position: absolute; inset: -10%; pointer-events: none; z-index: -1; transform: rotate(2deg);
   background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }	/* light scanlines over it, turned back level */
+.lgshade { margin: 40px calc(50% - 50vw); filter: drop-shadow(0 0 12px rgba(0,0,0,.5)); }	/* depth for the torn edges */
+.lgshade .lg { margin: 0; }
 </style>
 </head>
 <body>
@@ -425,12 +427,12 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
   </div>
 </section>
 
-<div class="lg lgA"><div class="wrap">
+<div class="lgshade"><div class="lg lgA"><div class="wrap">
   <div><span class="tag">New in 0.3.2</span>
   <h2 class="lgt">Laser Ghost is supported <em>for thrilling action!</em></h2>
   <p class="lgs">Up to three ghost hunters, a pad for each gun: the stick moves the crosshair, A fires, B drops the bomb. The guns adjust themselves the first time.</p></div>
-  <div class="pile"><span class="ph"><img src="img/lg-damage.png" alt=""></span><span class="ph"><img src="img/lg-hotel.png" alt=""></span><span class="ph"><img src="img/lg-street.png" alt="Laser Ghost"></span></div>
-</div></div>
+  <div class="pile"><span class="ph"><span class="card"><img src="img/lg-damage.png" alt=""></span></span><span class="ph"><span class="card"><img src="img/lg-hotel.png" alt=""></span></span><span class="ph"><span class="card"><img src="img/lg-street.png" alt="Laser Ghost"></span></span></div>
+</div></div></div>
 <section id="frame">
   <h2><span>03</span> Beam racing</h2>
   <div class="content">
