@@ -197,7 +197,7 @@ h3:first-child { margin-top: 0; }
 .crt            { position: relative; }
 .crt .composite {
   position: absolute; inset: 1px; pointer-events: none;
-  background: url(img/composite-crawl.png) 0 0 / 100% 300%;
+  background: url(img/composite-astorm-crawl.png) 0 0 / 100% 300%;
   image-rendering: pixelated;
   animation: crawl 150ms steps(3) infinite;
 }
@@ -360,7 +360,7 @@ html, body { overflow-x: clip; }
 .me { color: #fff; font-weight: 700; }	/* the name in the text */
 /* a ghost from the game flies across the Laser Ghost band now and then */
 .lgA .wrap { position: relative; z-index: 1; }
-.lgA .ghost { position: absolute; left: 0; top: 0; width: 180px; image-rendering: pixelated; pointer-events: none; z-index: 2;
+.lgA .ghost { position: absolute; left: 0; top: 0; width: 140px; image-rendering: pixelated; pointer-events: none; z-index: 2;
   opacity: 0; filter: drop-shadow(0 0 6px rgba(140,255,90,.9)) drop-shadow(0 0 18px rgba(120,255,80,.55)); will-change: transform, opacity; }
 .lgA .ghost.trail { filter: blur(1px) drop-shadow(0 0 10px rgba(140,255,90,.8)); }
 @media (prefers-reduced-motion: reduce) { .lgA .ghost { display: none; } }
@@ -429,7 +429,7 @@ html, body { overflow-x: clip; }
     <div class="shots">
       <figure><img src="img/list.png" width="640" height="448" alt="Game list"><figcaption>Game list</figcaption></figure>
       <figure><img src="img/golden-axe.png" width="640" height="448" alt="Golden Axe" loading="lazy"><figcaption>Golden Axe (System 16)</figcaption></figure>
-      <figure><div class="crt"><img src="img/composite.png" width="640" height="480" loading="lazy" alt="Detail of Alien Storm's hot dog van through the COMPOSITE filter: colour fringes and dot crawl on the edges"><div class="composite" aria-hidden="true"></div></div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
+      <figure><div class="crt"><img src="img/composite-astorm.png" width="640" height="480" loading="lazy" alt="Detail of Alien Storm's hot dog van through the COMPOSITE filter: colour fringes and dot crawl on the edges"><div class="composite" aria-hidden="true"></div></div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
       <figure><img src="img/dip-switches.png" width="640" height="448" alt="DIP switches over Golden Axe" loading="lazy"><figcaption>DIP switches</figcaption></figure>
     </div>
   </div>
@@ -639,8 +639,8 @@ document.fonts.ready.then(() => {
   const parts = [[ghost, 0, 1], [trail1, 90, .35], [trail2, 180, .18]];	// element, delay ms, opacity
   function fly () {
     const w = band.clientWidth, h = band.clientHeight;
-    const ltr = Math.random() < .5, size = 120 + Math.random() * 90;
-    const y0 = h * (.15 + Math.random() * .5), amp = 18 + Math.random() * 30, dur = 5200 + Math.random() * 2600;
+    const ltr = Math.random() < .5, size = 100 + Math.random() * 70;
+    const y0 = h * (.15 + Math.random() * .5), amp = 18 + Math.random() * 30, dur = 4300 + Math.random() * 2000;
     const t0 = performance.now();
     for (const [el] of parts) el.style.width = size + 'px';
     function step (now) {
