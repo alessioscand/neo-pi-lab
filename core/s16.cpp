@@ -640,26 +640,40 @@ void s16_set_aim (int p, int x, int y)
 }
 void s16_set_crosshair (int p, int bOn)	{ if (p >= 0 && p < 3) s_Cross[p].bOn = bOn != 0; }
 
-// a cross 2 pixels thick, arms 7 long, a gap of 2 around a white centre of
-// 2 x 2 pixels (on the aimed pixel and the one up and left), outlined in black
-enum { CROSS_R = 10 };
+// four corners 3 pixels thick (a white line along their middle), 25 pixels
+// across, square, and a small white cross on the aimed pixel; outlined in black
+enum { CROSS_R = 14 };
 static u8 s_CrossShape[2 * CROSS_R + 1][2 * CROSS_R + 1];	// 0 none, 1 black, 2 colour, 3 white
 static void CrossShapeInit (void)
 {
 	if (s_CrossShape[CROSS_R][CROSS_R]) return;
-	u8 Pix[2 * CROSS_R + 1][2 * CROSS_R + 1] = {};
-	for (int d = 3; d <= 9; d++)
+	enum { C = CROSS_R, R = 12, L = 7 };
+	u8 Pix[2 * C + 1][2 * C + 1] = {};
+	for (int sx = -1; sx <= 1; sx += 2)
 	{
-		for (int t = -1; t <= 0; t++)
+		for (int sy = -1; sy <= 1; sy += 2)
 		{
-			Pix[CROSS_R + t][CROSS_R + d - 1] = Pix[CROSS_R + t][CROSS_R - d] = 2;
-			Pix[CROSS_R + d - 1][CROSS_R + t] = Pix[CROSS_R - d][CROSS_R + t] = 2;
+			for (int k = -1; k < L; k++)		// from -1: the outer corner is filled
+			{
+				for (int t = -1; t <= 1; t++)
+				{
+					Pix[C + sy * (R - k)][C + sx * (R + t)] = 2;	// the upright arm
+					Pix[C + sy * (R + t)][C + sx * (R - k)] = 2;	// the level arm
+				}
+			}
+			for (int k = 0; k < L; k++)
+			{
+				Pix[C + sy * (R - k)][C + sx * R] = 3;
+				Pix[C + sy * R][C + sx * (R - k)] = 3;
+			}
 		}
 	}
-	for (int y = -1; y <= 0; y++)
-		for (int x = -1; x <= 0; x++) Pix[CROSS_R + y][CROSS_R + x] = 3;
-	for (int y = 0; y <= 2 * CROSS_R; y++)
-		for (int x = 0; x <= 2 * CROSS_R; x++)
+	for (int k = -2; k <= 2; k++)
+	{
+		Pix[C][C + k] = Pix[C + k][C] = 3;
+	}
+	for (int y = 0; y <= 2 * C; y++)
+		for (int x = 0; x <= 2 * C; x++)
 		{
 			u8 v = Pix[y][x];
 			if (!v)
@@ -668,7 +682,7 @@ static void CrossShapeInit (void)
 					for (int dx = -1; dx <= 1 && !v; dx++)
 					{
 						const int yy = y + dy, xx = x + dx;
-						if (yy >= 0 && yy <= 2 * CROSS_R && xx >= 0 && xx <= 2 * CROSS_R && Pix[yy][xx]) v = 1;
+						if (yy >= 0 && yy <= 2 * C && xx >= 0 && xx <= 2 * C && Pix[yy][xx]) v = 1;
 					}
 			}
 			s_CrossShape[y][x] = v;
