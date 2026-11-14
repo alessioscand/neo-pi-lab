@@ -71,10 +71,18 @@ unsigned s16_slow_work (void);
 void s16_set_player (int nPlayer, uint8_t nBits);
 /* bits 0-3 start 1-4, bits 4-7 coin 1-4 (active high) */
 void s16_set_system (uint8_t nBits);
-/* Laser Ghost: gun p (0-2) aims at x, y (0-255 each, left to right, top to
-   bottom); s16_guns () is the number of guns of the game (0 = none) */
-void s16_set_gun (int p, uint8_t nX, uint8_t nY);
+/* Laser Ghost: s16_guns () is the number of guns of the game (0 = none). Gun
+   p (0-2) aims at pixel x, y; its crosshair is drawn on the picture if on.
+   s16_gun_adjust does the game's gun adjustment (asked for while the work RAM
+   is blank): call it each frame from the start, t = frames since then, instead
+   of s16_set_aim, and pass the trigger/bomb bits it gives to s16_set_player,
+   until it returns 0. s16_nvram: the battery-kept RAM to save and load (0 bytes: none). */
 int s16_guns (void);
+void s16_set_aim (int p, int x, int y);
+void s16_set_crosshair (int p, int bOn);
+int s16_gun_adjust (int t, uint8_t Fire[3]);
+size_t s16_nvram_size (void);
+uint8_t *s16_nvram (void);
 void s16_set_dsw (uint16_t nDSW);
 
 /* sound: 48 kHz stereo frames made so far */

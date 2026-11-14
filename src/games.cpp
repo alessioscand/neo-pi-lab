@@ -273,7 +273,7 @@ void CKernel::StatePath (char *pOut, size_t nSize) const
 	GamePath (pOut, nSize, "st1");
 }
 
-// save data of the loaded game: the hiscores
+// save data of the loaded game: the hiscores, the battery RAM
 void CKernel::SaveGameData (void)
 {
 	if (m_nLoaded < 0)
@@ -281,6 +281,7 @@ void CKernel::SaveGameData (void)
 		return;
 	}
 	HiSave ();
+	NvSave ();
 }
 
 void CKernel::UnloadGame (void)
@@ -423,6 +424,7 @@ boolean CKernel::LoadGame (unsigned nIndex)
 	LoadDips ();
 	s16_reset ();
 	HiStart ();
+	NvStart ();
 
 	WriteTextFile (LAST_PATH, G.File);
 	return TRUE;

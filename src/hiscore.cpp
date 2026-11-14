@@ -4,6 +4,11 @@
  * of saves/<game>.hi is put over it; the table is written back when it changed
  * (in-game menu, game list, another game, RESET, power off). The .hi files are
  * MAME's own format.
+ *
+ * And the battery-kept RAM of the games that have it (Laser Ghost: its work
+ * RAM, with the gun adjustment), in saves/<game>.nv, loaded at power-on and
+ * written when it changed. Without it Laser Ghost asks for the adjustment,
+ * which the game loop then does for the player (s16_gun_adjust).
  */
 #include "kernel.h"
 #include "mcline.h"
@@ -109,5 +114,72 @@ void CKernel::HiSave (void)
 	else
 	{
 		Log ("  hiscores: NOT saved", COLOR_ERR);
+	}
+}
+
+static u8 *s_pNvCard = 0;		// what saves/<game>.nv holds (or will)
+
+void CKernel::NvStart (void)
+{
+	delete [] s_pNvCard;
+	s_pNvCard = 0;
+	m_bGunAdjust = FALSE;
+	const size_t nSize = s16_nvram_size ();
+	if (nSize == 0 || (s_pNvCard = new u8[nSize]) == 0)
+	{
+		return;
+	}
+	char Path[160];
+	GamePath (Path, sizeof Path, "nv");
+	FIL File;
+	UINT nRead = 0;
+	if (f_open (&File, Path, FA_READ) == FR_OK)
+	{
+		f_read (&File, s_pNvCard, nSize, &nRead);
+		f_close (&File);
+	}
+	if (nRead == nSize)
+	{
+		memcpy (s16_nvram (), s_pNvCard, nSize);
+		Log ("  battery RAM: loaded from the card", COLOR_DIM);
+	}
+	else
+	{
+		memcpy (s_pNvCard, s16_nvram (), nSize);	// blank: written once it changes
+		m_bGunAdjust = s16_guns () > 0;
+		Log (m_bGunAdjust ? "  battery RAM: none saved yet, the guns will be adjusted"
+				  : "  battery RAM: none saved yet", COLOR_DIM);
+	}
+}
+
+void CKernel::NvSave (void)
+{
+	const size_t nSize = s16_nvram_size ();
+	if (nSize == 0 || !s_pNvCard)
+	{
+		return;
+	}
+	McSync ();
+	if (memcmp (s16_nvram (), s_pNvCard, nSize) == 0)
+	{
+		return;
+	}
+	char Path[160];
+	GamePath (Path, sizeof Path, "nv");
+	FIL File;
+	UINT nWritten = 0;
+	if (f_open (&File, Path, FA_WRITE | FA_CREATE_ALWAYS) == FR_OK)
+	{
+		f_write (&File, s16_nvram (), nSize, &nWritten);
+		f_close (&File);
+	}
+	if (nWritten == nSize)
+	{
+		memcpy (s_pNvCard, s16_nvram (), nSize);
+		Log ("  battery RAM: saved", COLOR_DIM);
+	}
+	else
+	{
+		Log ("  battery RAM: NOT saved", COLOR_ERR);
 	}
 }

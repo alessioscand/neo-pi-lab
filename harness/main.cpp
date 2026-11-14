@@ -135,30 +135,23 @@ int main (int argc, char **argv)
 		s16_set_system (nSystem);
 		if (nGuns >= 0 && s16_guns ())
 		{
-			// the game's GUN ADJUSTMENT (shown while its RAM is blank): for each
-			// gun, the trigger to start, then the flash points top left and bottom
-			// right; then both bombs to leave; then gun 1 sweeps and fires
-			static uint8_t X[3] = {128, 128, 128}, Y[3] = {128, 128, 128};
-			uint8_t Pad[3] = {0, 0, 0};
-			const int t = f - nGuns, nStep = (t - 60) / 90, nPhase = (t - 60) % 90;
-			if (t >= 60 && nStep < 12 && nStep % 4 != 3)
-			{
-				const int g = nStep / 4, k = nStep % 4;	// 0: start, 1: top left, 2: bottom right
-				X[g] = Y[g] = k == 2 ? 250 : 5;
-				if (nPhase >= 40 && nPhase < 48) Pad[g] = 0x10;
-			}
-			if (t >= 1150 && t < 1160) Pad[0] = Pad[1] = Pad[2] = 0x20;
-			if (t >= 1300)
+			// the gun adjustment (from frame nGuns), then gun 1 sweeps and fires;
+			// the crosshairs are on
+			static int Aim[3][2] = {{160, 112}, {160, 112}, {160, 112}};
+			uint8_t Fire[3] = {0, 0, 0};
+			const bool bAdjust = f >= nGuns && s16_gun_adjust (f - nGuns, Fire);
+			if (!bAdjust)
 			{
 				const int u = f % 240;
-				X[0] = (uint8_t) (u < 120 ? u * 2 : (240 - u) * 2);
-				Y[0] = 128;
-				if (f % 8 < 4 && u < 120) Pad[0] = 0x10;
+				Aim[0][0] = 20 + (u < 120 ? u : 240 - u) * 280 / 120;
+				Aim[0][1] = 120;
+				if (f % 8 < 4 && u < 120) Fire[0] = 0x10;
 			}
 			for (int g = 0; g < 3; g++)
 			{
-				s16_set_gun (g, X[g], Y[g]);
-				s16_set_player (g, Pad[g]);
+				if (!bAdjust) s16_set_aim (g, Aim[g][0], Aim[g][1]);
+				s16_set_crosshair (g, 1);
+				s16_set_player (g, Fire[g]);
 			}
 		}
 		if (nState > 0 && f == nState)			// save, run on, load: the run must go on the same

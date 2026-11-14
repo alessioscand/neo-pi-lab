@@ -29,5 +29,10 @@ obj/z80.o: $(THIRD)/z80/z80.c
 	@mkdir -p obj
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# Laser Ghost's shots (core/s16_guns.inc), measured with straight aims
+gunmap: gunmap.cpp $(filter-out obj/main.o obj/s16.o,$(OBJ)) $(CORE)/*.h $(CORE)/*.inc $(CORE)/s16.cpp
+	$(CXX) $(CXXFLAGS) -DGUN_RAW -DMUSASHI_CNF='"s16_m68kconf.h"' -DZ80_OPCODE_HOOK=s16_z80_opcode -c -o obj/s16_raw.o $(CORE)/s16.cpp
+	$(CXX) $(CXXFLAGS) -o $@ gunmap.cpp obj/s16_raw.o $(filter-out obj/main.o obj/s16.o,$(OBJ))
+
 clean:
-	rm -rf obj s16test
+	rm -rf obj s16test gunmap

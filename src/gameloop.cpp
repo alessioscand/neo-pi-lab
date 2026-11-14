@@ -281,6 +281,13 @@ void CKernel::PlayStart (void)
 	P.nLoadColor = UI_OK;
 	P.nTempColor = UI_WHITE;
 	P.nWinStart = CTimer::GetClockTicks ();
+	for (unsigned g = 0; g < 3; g++)
+	{
+		P.nAimX[g] = (S16_WIDTH / 2) * 16;
+		P.nAimY[g] = (S16_HEIGHT / 2) * 16;
+	}
+	P.nGunAdjust = m_bGunAdjust ? 0 : -1;
+	m_bGunAdjust = FALSE;
 	PlayWaitRelease ();			// buttons still held from the list
 }
 
@@ -291,6 +298,70 @@ void CKernel::PlayWaitRelease (void)
 	{
 		m_Play.nPrev[p] = ~0u;
 		m_Play.bSelectCombo[p] = FALSE;
+	}
+}
+
+// Laser Ghost: the stick moves the crosshair (slowly at first, then faster),
+// A fires, B is the bomb. While the battery RAM is blank the game asks for the
+// gun adjustment, which s16_gun_adjust does for the players: the pads wait.
+void CKernel::PlayGuns (const u32 Pad[4], u8 Player[4], boolean bPaused)
+{
+	const int nGuns = s16_guns ();
+	if (nGuns == 0)
+	{
+		return;
+	}
+	TPlay &P = m_Play;
+	if (P.nGunAdjust >= 0)
+	{
+		u8 Fire[3];
+		if (bPaused)
+		{
+			memset (Player, 0, 3);
+			return;
+		}
+		if (s16_gun_adjust (P.nGunAdjust, Fire))
+		{
+			for (int g = 0; g < nGuns; g++)
+			{
+				s16_set_crosshair (g, TRUE);
+				Player[g] = Fire[g];
+			}
+			if (P.nGunAdjust++ == 0)
+			{
+				snprintf (P.Toast, sizeof P.Toast, "ADJUSTING THE GUNS");
+				snprintf (P.ToastSide, sizeof P.ToastSide, "GUN\nADJUST");
+				P.nToast = 600;
+			}
+			return;
+		}
+		P.nGunAdjust = -1;
+		P.nToast = 0;
+		Log ("  guns adjusted", COLOR_TEXT);
+	}
+	for (int g = 0; g < nGuns; g++)
+	{
+		const boolean bOn = (unsigned) g < P.nPlayers && (g == 0 || m_pInput->IsPadConnected ((unsigned) g));
+		const u32 n = bPaused ? 0 : Pad[g];
+		const int dx = (n & BTN_RIGHT) ? 1 : (n & BTN_LEFT) ? -1 : 0;
+		const int dy = (n & BTN_DOWN) ? 1 : (n & BTN_UP) ? -1 : 0;
+		if (dx || dy)
+		{
+			// 1.5 pixels a frame, up to 5 after a quarter of a second
+			const int v = P.nAimHeld[g] < 16 ? 24 + 3 * (int) P.nAimHeld[g] : 72;
+			P.nAimHeld[g]++;
+			P.nAimX[g] += dx * v;
+			P.nAimY[g] += dy * v;
+			P.nAimX[g] = P.nAimX[g] < 0 ? 0 : P.nAimX[g] > (S16_WIDTH - 1) * 16 ? (S16_WIDTH - 1) * 16 : P.nAimX[g];
+			P.nAimY[g] = P.nAimY[g] < 0 ? 0 : P.nAimY[g] > (S16_HEIGHT - 1) * 16 ? (S16_HEIGHT - 1) * 16 : P.nAimY[g];
+		}
+		else
+		{
+			P.nAimHeld[g] = 0;
+		}
+		s16_set_aim (g, P.nAimX[g] >> 4, P.nAimY[g] >> 4);
+		s16_set_crosshair (g, bOn);
+		Player[g] &= 0x30;			// the trigger and the bomb only
 	}
 }
 
@@ -421,6 +492,7 @@ void CKernel::PlayReadPanels (const u32 Pad[4], TPlayInput *pIn)
 		if (P.nCoin[p]) { nSystem |= (u8) (0x10 << p); P.nCoin[p]--; }
 		if ((Eff[p] & BTN_START) && !(Eff[p] & BTN_SELECT)) nSystem |= (u8) (0x01 << p);
 	}
+	PlayGuns (Eff, Player, bOpenMenu || bOpenCredits);
 	for (unsigned p = 0; p < 4; p++) s16_set_player ((int) p, Player[p]);
 	s16_set_system (nSystem);
 
@@ -584,6 +656,7 @@ boolean CKernel::PlayMenu (const u32 Pad[4])
 			McSync ();
 			s16_reset ();
 			HiStart ();
+			if (P.nGunAdjust > 0) P.nGunAdjust = 0;	// the adjustment starts again
 			Log ("  reset", COLOR_TEXT);
 			P.bMenu = FALSE;
 			break;

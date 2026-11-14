@@ -56,6 +56,7 @@ CKernel::CKernel (void)
 	m_nGames (0),
 	m_nLoaded (-1),
 	m_nShots (0),
+	m_bGunAdjust (FALSE),
 	m_nDsw (0xFFFF),
 	m_nFilter (0),
 	m_bHVS (TRUE),

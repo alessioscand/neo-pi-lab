@@ -21,3 +21,4 @@ harness/obj/
 harness/s16test
 *.ppm
 *.wav
+harness/gunmap

@@ -117,6 +117,8 @@ private:
 	void HiStop (void);
 	void HiTick (void);
 	void HiSave (void);
+	void NvStart (void);
+	void NvSave (void);
 
 	// settings.cpp
 	static const char *FilterName (unsigned nFilter);
@@ -147,6 +149,7 @@ private:
 	void PlayStart (void);
 	void PlayWaitRelease (void);
 	void PlayReadPanels (const u32 Pad[4], TPlayInput *pIn);
+	void PlayGuns (const u32 Pad[4], u8 Player[4], boolean bPaused);
 	void PlayOpenMenu (void);
 	unsigned PlayFrame (boolean bRace, boolean bScreenshot, unsigned *pT0, boolean *pOddFrame);
 	boolean PlayMenu (const u32 Pad[4]);
@@ -205,6 +208,7 @@ private:
 	unsigned		 m_nGames;
 	int			 m_nLoaded;	// index in m_pGames, -1 = none
 	unsigned		 m_nShots;	// last screenshot number used
+	boolean			 m_bGunAdjust;	// Laser Ghost: no battery RAM saved, adjust the guns
 	u16			 m_nDsw;	// DIP switches of the loaded game (saves/<game>.dip)
 
 	// configuration (s16pi.cfg)
@@ -237,6 +241,12 @@ private:
 		unsigned nSelectHeld[4];	// frames Select has been held alone
 		boolean	 bLazy[4];		// lazy finger (turbo on A-F), Select+B
 		unsigned nLazyCount[4][6];	// frames each of A-F has been held
+
+		// Laser Ghost: where each gun aims (pixels x 16), how long the stick
+		// has been held (it speeds up), the gun adjustment (frames, -1: none)
+		int	 nAimX[3], nAimY[3];
+		unsigned nAimHeld[3];
+		int	 nGunAdjust;
 
 		// message in the top band, in frames
 		char	 Toast[64];
