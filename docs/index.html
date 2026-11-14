@@ -357,6 +357,7 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
 .lgshade { margin: 40px calc(50% - 50vw - 40px); filter: drop-shadow(0 0 12px rgba(0,0,0,.5)); }	/* depth for the torn edges; wider than the screen, cut by it */
 html, body { overflow-x: clip; }
 .lgshade .lg { margin: 0; }
+.me { color: #fff; font-weight: 700; }	/* the name in the text */
 </style>
 </head>
 <body>
@@ -399,7 +400,7 @@ html, body { overflow-x: clip; }
   <div class="content">
     <h3>System 16/18</h3>
     <dl class="kv">
-      <dt>Main CPU</dt>   <dd>68000 · 10 MHz <small>(FD1089 / FD1094 decrypted with each key)</small></dd>
+      <dt>Main CPU</dt>   <dd>68000 · 10 MHz <small>(FD1089/FD1094 decrypted)</small></dd>
       <dt>Sound CPU</dt>  <dd>Z80 · 4–8 MHz</dd>
       <dt>Sound</dt>      <dd>16A: YM2151 + 8048 DAC · 16B: YM2151 + µPD7759 · 18: 2 × YM3438 + RF5C68</dd>
       <dt>Video</dt>      <dd>two tile layers, text layer, 128 sprites · 18: plus the Mega Drive VDP (315-5313)</dd>
@@ -408,7 +409,7 @@ html, body { overflow-x: clip; }
     <h3>RPi</h3>
     <dl class="kv">
       <dt>Core 0</dt> <dd>68000 · Z80 · sound chips <small>(+ pads and UI)</small></dd>
-      <dt>Core 1</dt> <dd>tiles · sprites · VDP <small>(draws each line just before it is sent)</small></dd>
+      <dt>Core 1</dt> <dd>tiles · sprites · VDP <small>(beam racing)</small></dd>
       <dt>Core 2</dt> <dd>COMPOSITE filter <small>(when chosen)</small></dd>
       <dt>Output</dt> <dd>HDMI 1080p (4×) or 720p (3×), integer scaling · 48 kHz audio</dd>
       <dt>Pads</dt>   <dd>USB, polled every 1 ms · up to 4 players</dd>
@@ -422,8 +423,8 @@ html, body { overflow-x: clip; }
     <div class="shots">
       <figure><img src="img/list.png" width="640" height="448" alt="Game list"><figcaption>Game list</figcaption></figure>
       <figure><img src="img/golden-axe.png" width="640" height="448" alt="Golden Axe" loading="lazy"><figcaption>Golden Axe (System 16)</figcaption></figure>
-      <figure><img src="img/moonwalker.png" width="640" height="448" alt="Michael Jackson's Moonwalker" loading="lazy"><figcaption>Michael Jackson's Moonwalker (System 18)</figcaption></figure>
-      <figure><img src="img/options.png" width="640" height="448" alt="Options menu"><figcaption>Options</figcaption></figure>
+      <figure><div class="crt"><img src="img/composite.png" width="640" height="480" loading="lazy" alt="Detail of the Moonwalker title through the COMPOSITE filter: colour fringes and dot crawl on the edges"><div class="composite" aria-hidden="true"></div></div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
+      <figure><img src="img/dip-switches.png" width="640" height="448" alt="DIP switches over Golden Axe" loading="lazy"><figcaption>DIP switches</figcaption></figure>
     </div>
   </div>
 </section>
@@ -437,7 +438,7 @@ html, body { overflow-x: clip; }
 <section id="frame">
   <h2><span>03</span> Beam racing</h2>
   <div class="content">
-    <p>s16-pi uses <strong>beam racing</strong> to send each scanline to the TV as soon as it is rendered, in sync with the display's refresh. An emulator with double buffering instead waits for the entire frame to be rendered before presenting it, adding up to one frame of latency.</p>
+    <p><b class="me">s16-pi</b> uses <strong>beam racing</strong> to send each scanline to the TV as soon as it is rendered, in sync with the display's refresh. An emulator with double buffering instead waits for the entire frame to be rendered before presenting it, adding up to one frame of latency.</p>
     <div class="timeline">
       <div class="spacer"></div>
       <div class="scale" aria-hidden="true"><span class="s0">0 ms</span><span class="s1">16.7</span><span class="s2">33.4</span><span class="s3">50 ms</span></div>
@@ -478,28 +479,28 @@ html, body { overflow-x: clip; }
         <thead><tr><th>Year</th><th>Game</th><th>System</th><th>MAME sets</th></tr></thead>
         <tbody>
           <tr><td>1986</td><td>Alex Kidd: The Lost Stars</td><td class="sys">16A</td><td class="sets">alexkidd alexkidd1</td></tr>
-          <tr><td>1986</td><td>Fantasy Zone</td><td class="sys">16A</td><td class="sets">fantzone fantzone1 fantzonep fantzonee</td></tr>
-          <tr><td>1986</td><td>Quartet</td><td class="sys">16A</td><td class="sets">quartet quarteta quartet2 quartet2a</td></tr>
-          <tr><td>1987</td><td>Alien Syndrome</td><td class="sys">16A · 16B</td><td class="sets">aliensyn aliensyn2 aliensyn3 aliensyn5 aliensyn7 aliensynj</td></tr>
-          <tr><td>1987</td><td>Dunk Shot</td><td class="sys">16B</td><td class="sets">dunkshot dunkshota dunkshoto</td></tr>
-          <tr><td>1987</td><td>SDI</td><td class="sys">16A · 16B</td><td class="sets">sdi sdia defense sdib</td></tr>
-          <tr><td>1987</td><td>Shinobi</td><td class="sys">16A · 16B</td><td class="sets">shinobi shinobi1 … shinobi6</td></tr>
-          <tr><td>1988</td><td>Altered Beast</td><td class="sys">16B</td><td class="sets">altbeast altbeastj altbeast2 … altbeast6</td></tr>
-          <tr><td>1988</td><td>Dynamite Dux</td><td class="sys">16B</td><td class="sets">ddux dduxj ddux1</td></tr>
-          <tr><td>1988</td><td>Tetris</td><td class="sys">16A · 16B</td><td class="sets">tetris tetris1 tetris2 tetris3</td></tr>
-          <tr><td>1988</td><td>Wonder Boy III – Monster Lair</td><td class="sys">16A · 16B</td><td class="sets">wb3 wb31 wb32 … wb35</td></tr>
-          <tr><td>1989</td><td>Bloxeed</td><td class="sys">18</td><td class="sets">bloxeed bloxeeda</td></tr>
-          <tr><td>1989</td><td>Cyber Police ESWAT</td><td class="sys">16B</td><td class="sets">eswat eswatu eswatj eswatj1</td></tr>
-          <tr><td>1989</td><td>Golden Axe</td><td class="sys">16B</td><td class="sets">goldnaxe goldnaxeu goldnaxej goldnaxe1 … goldnaxe3</td></tr>
-          <tr><td>1989</td><td>Shadow Dancer</td><td class="sys">18</td><td class="sets">shdancer shdancerj shdancer1</td></tr>
-          <tr><td>1989</td><td>Tough Turf</td><td class="sys">16B</td><td class="sets">tturf tturfu</td></tr>
           <tr><td>1990</td><td>Alien Storm</td><td class="sys">18</td><td class="sets">astorm astorm3 astormu astormj</td></tr>
+          <tr><td>1987</td><td>Alien Syndrome</td><td class="sys">16A · 16B</td><td class="sets">aliensyn aliensyn2 aliensyn3 aliensyn5 aliensyn7 aliensynj</td></tr>
+          <tr><td>1988</td><td>Altered Beast</td><td class="sys">16B</td><td class="sets">altbeast altbeastj altbeast2 … altbeast6</td></tr>
           <tr><td>1990</td><td>Aurail</td><td class="sys">16B</td><td class="sets">aurail aurail1 aurailj</td></tr>
+          <tr><td>1989</td><td>Bloxeed</td><td class="sys">18</td><td class="sets">bloxeed bloxeeda</td></tr>
+          <tr><td>1991</td><td>Cotton</td><td class="sys">16B</td><td class="sets">cotton cottonu cottonj cottonja</td></tr>
+          <tr><td>1989</td><td>Cyber Police ESWAT</td><td class="sys">16B</td><td class="sets">eswat eswatu eswatj eswatj1</td></tr>
+          <tr><td>1991</td><td>D. D. Crew</td><td class="sys">18</td><td class="sets">ddcrew ddcrewu ddcrewj …</td></tr>
+          <tr><td>1987</td><td>Dunk Shot</td><td class="sys">16B</td><td class="sets">dunkshot dunkshota dunkshoto</td></tr>
+          <tr><td>1988</td><td>Dynamite Dux</td><td class="sys">16B</td><td class="sets">ddux dduxj ddux1</td></tr>
+          <tr><td>1986</td><td>Fantasy Zone</td><td class="sys">16A</td><td class="sets">fantzone fantzone1 fantzonep fantzonee</td></tr>
+          <tr><td>1989</td><td>Golden Axe</td><td class="sys">16B</td><td class="sets">goldnaxe goldnaxeu goldnaxej goldnaxe1 … goldnaxe3</td></tr>
           <tr><td>1990</td><td>Laser Ghost</td><td class="sys">18</td><td class="sets">lghost lghostu lghostj</td></tr>
           <tr><td>1990</td><td>Michael Jackson’s Moonwalker</td><td class="sys">18</td><td class="sets">mwalk mwalku mwalkj</td></tr>
-          <tr><td>1991</td><td>Cotton</td><td class="sys">16B</td><td class="sets">cotton cottonu cottonj cottonja</td></tr>
-          <tr><td>1991</td><td>D. D. Crew</td><td class="sys">18</td><td class="sets">ddcrew ddcrewu ddcrewj …</td></tr>
+          <tr><td>1986</td><td>Quartet</td><td class="sys">16A</td><td class="sets">quartet quarteta quartet2 quartet2a</td></tr>
           <tr><td>1991</td><td>Riot City</td><td class="sys">16B</td><td class="sets">riotcity</td></tr>
+          <tr><td>1987</td><td>SDI</td><td class="sys">16A · 16B</td><td class="sets">sdi sdia defense sdib</td></tr>
+          <tr><td>1989</td><td>Shadow Dancer</td><td class="sys">18</td><td class="sets">shdancer shdancerj shdancer1</td></tr>
+          <tr><td>1987</td><td>Shinobi</td><td class="sys">16A · 16B</td><td class="sets">shinobi shinobi1 … shinobi6</td></tr>
+          <tr><td>1988</td><td>Tetris</td><td class="sys">16A · 16B</td><td class="sets">tetris tetris1 tetris2 tetris3</td></tr>
+          <tr><td>1989</td><td>Tough Turf</td><td class="sys">16B</td><td class="sets">tturf tturfu</td></tr>
+          <tr><td>1988</td><td>Wonder Boy III – Monster Lair</td><td class="sys">16A · 16B</td><td class="sets">wb3 wb31 wb32 … wb35</td></tr>
         </tbody>
       </table>
     </div>
@@ -530,7 +531,7 @@ html, body { overflow-x: clip; }
 <section id="support">
   <h2><span>06</span> Support</h2>
   <div class="content">
-    <p>s16-pi is <strong>free</strong>. Enjoying it?</p>
+    <p><b class="me">s16-pi</b> is <strong>free</strong>. Enjoying it?</p>
     <a class="download coffee" href="#"><svg aria-hidden="true" width="14" height="12" viewBox="0 0 7 6" shape-rendering="crispEdges"><path d="M1 0h2v1h1V0h2v1h1v2h-1v1h-1v1h-1v1H3V5H2V4H1V3H0V1h1z"/></svg>Buy me a coffee</a>
     <p class="siblings">Siblings: <a href="https://alessioscand.github.io/neo-pi/">neo-pi</a> · <a href="https://alessioscand.github.io/m92-pi/">m92-pi</a> · <a href="https://github.com/alessioscand/nes-pi">nes-pi</a></p>
   </div>
