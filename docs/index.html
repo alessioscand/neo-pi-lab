@@ -344,15 +344,15 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
 .lgA .pile .ph { position: absolute; width: 70%; padding: 4px; background: #FFF3D6; box-shadow: 6px 6px 0 #3A0412;
   outline: 1px solid transparent; }	/* the turned frame keeps smooth edges */
 .lgA .pile .ph img { width: 100%; }
-.lgA .pile .ph::after { content: ""; position: absolute; inset: 4px; pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }	/* light scanlines */
 .lgA .pile .ph:nth-child(1) { left: -4%; top: 0; transform: rotate(-6deg); }
 .lgA .pile .ph:nth-child(2) { right: 0; top: 34px; transform: rotate(5deg); }
-.lgA .pile .ph:nth-child(3) { left: 14%; bottom: 0; transform: rotate(-1deg); z-index: 2; }
+.lgA .pile .ph:nth-child(3) { left: 14%; bottom: 0; z-index: 2; }
 @media (max-width: 700px) { .lgA .wrap { grid-template-columns: 1fr; } .lgA .pile { height: 270px; margin-right: 0; } }
 .lgA::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1;
   background: url(img/lg-street.png) center 60% / cover no-repeat; image-rendering: pixelated;
   opacity: .28; mix-blend-mode: hard-light; filter: blur(1px) saturate(.6); }	/* the street, faint, as a texture */
+.lgA::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }	/* light scanlines over it */
 </style>
 </head>
 <body>
@@ -429,7 +429,7 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
   <div><span class="tag">New in 0.3.2</span>
   <h2 class="lgt">Laser Ghost is supported <em>for thrilling action!</em></h2>
   <p class="lgs">Up to three ghost hunters, a pad for each gun: the stick moves the crosshair, A fires, B drops the bomb. The guns adjust themselves the first time.</p></div>
-  <div class="pile"><span class="ph"><img src="img/lg-street.png" alt=""></span><span class="ph"><img src="img/lg-hotel.png" alt=""></span><span class="ph"><img src="img/lg-damage.png" alt="Laser Ghost"></span></div>
+  <div class="pile"><span class="ph"><img src="img/lg-damage.png" alt=""></span><span class="ph"><img src="img/lg-hotel.png" alt=""></span><span class="ph"><img src="img/lg-street.png" alt="Laser Ghost"></span></div>
 </div></div>
 <section id="frame">
   <h2><span>03</span> Beam racing</h2>
