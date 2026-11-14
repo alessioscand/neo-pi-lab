@@ -8,15 +8,20 @@ WORK IN PROGRESS
   Golden Axe, Shinobi, Alien Syndrome, Aurail, Wonder Boy III, ESWAT,
   Cotton ... and on System 18 Shadow Dancer, Moonwalker, Alien Storm,
   D. D. Crew, Bloxeed, Clutch Hitter, Laser Ghost), 80 MAME sets,
-  protected ones included. Picture, sound, save state, DIP switches and the menus are
-  there. Vertical games and hiscores are not yet.
+  protected ones included. Picture, sound, save state, DIP switches and
+  the menus are there. Vertical games and hiscores are not yet.
+
+  Each game's battery-kept RAM (settings, bookkeeping, and the scores of
+  the games that keep them there) is saved in s16pi/saves/<game>.nv, as
+  on the real boards: credits left in a game are still there next time.
+  Delete the .nv file to start a game afresh.
 
   Laser Ghost is played with the pads instead of its 3 guns: the stick
-  moves the crosshair (blue, yellow and red for players 1, 2 and 3), A
-  fires, B is the bomb. The first time, the game asks for its gun
-  adjustment: s16-pi does it by itself in about 15 seconds (ADJUSTING
-  THE GUNS), then keeps it in saves/lghost.nv with the rest of the
-  board's battery-kept RAM.
+  moves the crosshair (blue, yellow and red for players 1, 2 and 3; it
+  shows while the player is in the game), A fires, B is the bomb. The
+  first time, the game asks for its gun adjustment: s16-pi does it by
+  itself in about 15 seconds (ADJUSTING THE GUNS), then keeps it in
+  saves/lghost.nv.
 
   System 18 boards run at 57.23 frames a second: here they run at the
   screen's 60, a little faster (music a little higher) than the real

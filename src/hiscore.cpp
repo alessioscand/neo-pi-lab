@@ -5,10 +5,11 @@
  * (in-game menu, game list, another game, RESET, power off). The .hi files are
  * MAME's own format.
  *
- * And the battery-kept RAM of the games that have it (Laser Ghost: its work
- * RAM, with the gun adjustment), in saves/<game>.nv, loaded at power-on and
- * written when it changed. Without it Laser Ghost asks for the adjustment,
- * which the game loop then does for the player (s16_gun_adjust).
+ * And the battery-kept work RAM of every game (as MAME's NVRAM: settings,
+ * bookkeeping, the hiscores of the games that keep them there, Laser Ghost's
+ * gun adjustment), in saves/<game>.nv, loaded at power-on and written when it
+ * changed. Without it Laser Ghost asks for the adjustment, which the game loop
+ * then does for the player (s16_gun_adjust).
  */
 #include "kernel.h"
 #include "mcline.h"

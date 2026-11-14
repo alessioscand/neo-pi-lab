@@ -733,8 +733,10 @@ int s16_gun_adjust (int t, uint8_t Fire[3])
 	return 0;
 }
 
-// Laser Ghost's work RAM, which a battery keeps: the gun adjustment is in it
-size_t s16_nvram_size (void)	{ return s_bLoaded && s_pGame->bGuns ? sizeof M.WorkRam : 0; }
+// The work RAM, which a battery keeps on the System 16B and 18 boards (MAME
+// saves it as the NVRAM of all of them): settings, bookkeeping, the hiscores
+// of the games that keep them there, Laser Ghost's gun adjustment
+size_t s16_nvram_size (void)	{ return s_bLoaded ? sizeof M.WorkRam : 0; }
 uint8_t *s16_nvram (void)	{ return M.WorkRam; }
 
 static u16 IoRead18 (u32 nOffset)
@@ -1295,10 +1297,7 @@ static void SoundHooks (void)
 
 static void Reset (void)
 {
-	if (!s_pGame->bGuns)		// Laser Ghost's work RAM is kept by a battery (see s16_nvram)
-	{
-		memset (&M.WorkRam, 0, sizeof M.WorkRam);
-	}
+	// the work RAM is kept by the battery over a reset (see s16_nvram)
 	memset (&M.SoundRam, 0, sizeof M.SoundRam);
 	memset (M.Mapper, 0, sizeof M.Mapper);
 	M.nToSound = M.nFromSound = 0;
