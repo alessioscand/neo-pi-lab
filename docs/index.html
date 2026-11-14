@@ -629,7 +629,7 @@ document.fonts.ready.then(() => {
   })(t0);
 })();
 
-/* Laser Ghost band: every 5-12 s a ghost floats across, bobbing and flickering,
+/* Laser Ghost band: every 5-12 s a ghost floats across, bobbing,
    with two fading afterimages, as in the films of the time */
 (() => {
   const band = document.querySelector('.lgA');
@@ -652,8 +652,7 @@ document.fonts.ready.then(() => {
         const x = ltr ? -size + t * (w + size * 2) : w + size - t * (w + size * 2);
         const y = y0 + Math.sin(t * Math.PI * 4) * amp;
         const tilt = Math.sin(t * Math.PI * 6) * 8;
-        const flick = Math.random() < .04 ? .3 : 1;
-        el.style.opacity = op * flick * Math.min(1, t * 8, (1 - t) * 8);
+        el.style.opacity = op * Math.min(1, t * 8, (1 - t) * 8);
         el.style.transform = `translate(${x}px, ${y}px) rotate(${tilt}deg) scaleX(${ltr ? -1 : 1})`;
       }
       if (live) requestAnimationFrame(step); else setTimeout(fly, 5000 + Math.random() * 7000);
