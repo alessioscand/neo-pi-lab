@@ -341,7 +341,7 @@ void CKernel::PlayGuns (const u32 Pad[4], u8 Player[4], boolean bPaused)
 	}
 	for (int g = 0; g < nGuns; g++)
 	{
-		const boolean bOn = (unsigned) g < P.nPlayers && (g == 0 || m_pInput->IsPadConnected ((unsigned) g));
+		const boolean bOn = s16_gun_in_play (g);	// not in attract mode, at the continue or after the game over
 		const u32 n = bPaused ? 0 : Pad[g];
 		const int dx = (n & BTN_RIGHT) ? 1 : (n & BTN_LEFT) ? -1 : 0;
 		const int dy = (n & BTN_DOWN) ? 1 : (n & BTN_UP) ? -1 : 0;

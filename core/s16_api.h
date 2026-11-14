@@ -78,6 +78,8 @@ void s16_set_system (uint8_t nBits);
    of s16_set_aim, and pass the trigger/bomb bits it gives to s16_set_player,
    until it returns 0. s16_nvram: the battery-kept RAM to save and load (0 bytes: none). */
 int s16_guns (void);
+unsigned s16_gun_recoils (int p);	/* times gun p's recoil came on, so far */
+int s16_gun_in_play (int p);		/* player p is in the game (so can shoot) */
 void s16_set_aim (int p, int x, int y);
 void s16_set_crosshair (int p, int bOn);
 int s16_gun_adjust (int t, uint8_t Fire[3]);

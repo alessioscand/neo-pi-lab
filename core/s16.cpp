@@ -67,7 +67,9 @@ static struct TMachine
 	u8 GunX[3], GunY[3];		// 0-255, left to right and top to bottom
 	u8 nAdcShift;			// the converted value, shifted out a bit at a time
 	u8 nAdcSelect;			// channels 2 and 3: gun 2 (0) or gun 3 (1)
+	u8 nRecoil;			// the guns' recoil solenoids now on (bits 0-2)
 } M;
+static unsigned s_nRecoils[3];		// times each recoil came on
 static TS16Video V;
 static z80 s_Z80;
 static i8751_cpu s_Mcu;
@@ -472,6 +474,14 @@ static void IoWrite (u32 nOffset, u16 nData)
 
 static void IoPortOut18 (int nPort, u8 d)
 {
+	if (nPort == 2 && s_pGame->bGuns)	// Laser Ghost: the guns' recoil solenoids, active low
+	{
+		for (int g = 0; g < 3; g++)
+		{
+			if ((M.nRecoil & (1 << g)) == 0 && (~d & (1 << g))) s_nRecoils[g]++;
+		}
+		M.nRecoil = (u8) (~d & 7);
+	}
 	if (nPort == 7 && s_pGame->nBoard != BOARD_S18_5987)
 	{
 		VideoSync ();
@@ -1643,6 +1653,18 @@ u16 s16_dsw_default (int n)			{ return Game (n) ? Game (n)->pInputs->nDswDefault
 void s16_set_player (int p, u8 nBits)		{ if (p >= 0 && p < 4) M.Player[p] = nBits; }
 void s16_set_system (u8 nBits)			{ M.nSystem = nBits; }
 int s16_guns (void)				{ return s_pGame && s_pGame->bGuns ? 3 : 0; }
+unsigned s16_gun_recoils (int p)		{ return p >= 0 && p < 3 ? s_nRecoils[p] : 0; }
+
+// Laser Ghost keeps a block of 0x80 bytes of work RAM per player from 0x460
+// (as stored here); its first byte has bits 7 and 6 both set while the player
+// is in the game, and not in attract mode, before joining, at the continue or
+// after the game over. Found by comparing the RAM with when the game drives
+// the guns' recoil (only for shots in play), in 1, 2 and 3 player games.
+int s16_gun_in_play (int p)
+{
+	if (!s_pGame || !s_pGame->bGuns || p < 0 || p >= 3) return 0;
+	return (M.WorkRam[0x460 + 0x80 * p] & 0xC0) == 0xC0;
+}
 void s16_set_dsw (u16 nDsw)			{ M.nDsw = nDsw; }
 
 void s16_set_line_callback (TS16LineCB *pCB, void *pCtx)	{ s_pLineCB = pCB; s_pLineCtx = pCtx; }

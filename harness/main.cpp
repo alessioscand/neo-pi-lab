@@ -150,7 +150,7 @@ int main (int argc, char **argv)
 			for (int g = 0; g < 3; g++)
 			{
 				if (!bAdjust) s16_set_aim (g, Aim[g][0], Aim[g][1]);
-				s16_set_crosshair (g, 1);
+				s16_set_crosshair (g, bAdjust || s16_gun_in_play (g));
 				s16_set_player (g, Fire[g]);
 			}
 		}
