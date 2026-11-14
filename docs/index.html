@@ -351,8 +351,8 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
 .lgA::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1;
   background: url(img/lg-street.png) center 60% / cover no-repeat; image-rendering: pixelated;
   opacity: .28; mix-blend-mode: hard-light; filter: blur(1px) saturate(.6); }	/* the street, faint, as a texture */
-.lgA::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }	/* light scanlines over it */
+.lgA::after { content: ""; position: absolute; inset: -10%; pointer-events: none; z-index: -1; transform: rotate(2deg);
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px); }	/* light scanlines over it, turned back level */
 </style>
 </head>
 <body>
