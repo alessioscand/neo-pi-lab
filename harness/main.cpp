@@ -95,6 +95,7 @@ int main (int argc, char **argv)
 	int nFrames = 600, nEvery = 0, nCoin = -1;
 	bool bWav = false;
 	int nState = -1;
+	int nGuns = -1;		// Laser Ghost: frame where the gun adjustment script starts
 	std::string Out = ".";
 	for (int i = 3; i < argc; i++)
 	{
@@ -104,6 +105,7 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "-coin") && i + 1 < argc)	nCoin = atoi (argv[++i]);
 		else if (!strcmp (argv[i], "-w"))			bWav = true;
 		else if (!strcmp (argv[i], "-state") && i + 1 < argc)	nState = atoi (argv[++i]);
+		else if (!strcmp (argv[i], "-guns") && i + 1 < argc)	nGuns = atoi (argv[++i]);
 	}
 	const int nGame = s16_find (pSet);
 	if (nGame < 0)
@@ -131,6 +133,34 @@ int main (int argc, char **argv)
 		if (nCoin >= 0 && f >= nCoin && f < nCoin + 8)			nSystem |= 0x10;
 		if (nCoin >= 0 && f >= nCoin + 60 && f < nCoin + 68)		nSystem |= 0x01;
 		s16_set_system (nSystem);
+		if (nGuns >= 0 && s16_guns ())
+		{
+			// the game's GUN ADJUSTMENT (shown while its RAM is blank): for each
+			// gun, the trigger to start, then the flash points top left and bottom
+			// right; then both bombs to leave; then gun 1 sweeps and fires
+			static uint8_t X[3] = {128, 128, 128}, Y[3] = {128, 128, 128};
+			uint8_t Pad[3] = {0, 0, 0};
+			const int t = f - nGuns, nStep = (t - 60) / 90, nPhase = (t - 60) % 90;
+			if (t >= 60 && nStep < 12 && nStep % 4 != 3)
+			{
+				const int g = nStep / 4, k = nStep % 4;	// 0: start, 1: top left, 2: bottom right
+				X[g] = Y[g] = k == 2 ? 250 : 5;
+				if (nPhase >= 40 && nPhase < 48) Pad[g] = 0x10;
+			}
+			if (t >= 1150 && t < 1160) Pad[0] = Pad[1] = Pad[2] = 0x20;
+			if (t >= 1300)
+			{
+				const int u = f % 240;
+				X[0] = (uint8_t) (u < 120 ? u * 2 : (240 - u) * 2);
+				Y[0] = 128;
+				if (f % 8 < 4 && u < 120) Pad[0] = 0x10;
+			}
+			for (int g = 0; g < 3; g++)
+			{
+				s16_set_gun (g, X[g], Y[g]);
+				s16_set_player (g, Pad[g]);
+			}
+		}
 		if (nState > 0 && f == nState)			// save, run on, load: the run must go on the same
 		{
 			const size_t nSize = s16_state_size ();

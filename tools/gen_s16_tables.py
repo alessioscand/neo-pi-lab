@@ -194,11 +194,16 @@ SYSTEM = {'IPT_START1': 0, 'IPT_START2': 1, 'IPT_START3': 2, 'IPT_START4': 3,
           'IPT_COIN1': 4, 'IPT_COIN2': 5, 'IPT_COIN3': 6, 'IPT_COIN4': 7}
 PLAYER = {'IPT_JOYSTICK_RIGHT': 0, 'IPT_JOYSTICK_LEFT': 1, 'IPT_JOYSTICK_DOWN': 2, 'IPT_JOYSTICK_UP': 3,
           'IPT_BUTTON1': 4, 'IPT_BUTTON2': 5, 'IPT_BUTTON3': 6, 'IPT_BUTTON4': 7}
-NOTHING = ('IPT_UNUSED', 'IPT_UNKNOWN', 'IPT_SERVICE', 'IPT_SERVICE1', 'IPT_SERVICE2')
+NOTHING = ('IPT_UNUSED', 'IPT_UNKNOWN', 'IPT_SERVICE', 'IPT_SERVICE1', 'IPT_SERVICE2', 'IPT_SERVICE3')
 # the core's input ports, by system; then the two DIP switch ports (SW1, SW2)
 IO_PORTS = {16: ('SERVICE', 'P1', 'UNUSED', 'P2'), 18: ('P1', 'P2', 'P3', 'SERVICE', 'EXP3', 'EXP4', 'EXSERVICE')}
 DIP_PORTS = {16: ('DSW1', 'DSW2'), 18: ('COINAGE', 'DSW')}
 NPORTS = 8
+
+def pad_ports(inp):
+    """the input ports without Laser Ghost's gun axes (GUNX1...) and MAME's own setting (FAKE):
+    the guns are positions read by an A/D converter, which the core emulates on its own"""
+    return {k: v for k, v in resolve(inp).items() if not k.startswith(('GUN', 'FAKE'))}
 
 def controls(ports, system):
     """returns (codes[8][8], conds, players, buttons) or the reason it can not be played with a pad
@@ -293,6 +298,7 @@ MACHINES = {    # machine configuration: CPU, 8751, MC8123, 171-5797 expected
     'system18': ('CPU_68000', False, False), 'system18_fd1094': ('CPU_FD1094', False, False),
     'system18_fd1094_i8751': ('CPU_FD1094', True, False), 'system18_i8751': ('CPU_68000', True, False),
     'ddcrew4p': ('CPU_68000', False, False), 'ddcrew4p_fd1094': ('CPU_FD1094', False, False),
+    'lghost_fd1094': ('CPU_FD1094', False, False),
 }
 INITS = {       # driver init: ROM board, what stands for the 8751
     'init_generic_5358_small': ('BOARD_5358_SMALL', None), 'init_generic_5358': ('BOARD_5358', None),
@@ -303,7 +309,7 @@ INITS = {       # driver init: ROM board, what stands for the 8751
     'init_tturf_5704': ('BOARD_5704', 'MCU_SIM_TTURF'), 'init_wb3_5704': ('BOARD_5704', 'MCU_SIM_WB3'),
     # System 18 (D. D. Crew's 4-player sets: the 171-5987 with an 8255)
     'init_generic_shad': ('BOARD_S18_SHADOW', None), 'init_generic_5874': ('BOARD_S18_5874', None),
-    'init_generic_5987': ('BOARD_S18_5987', None), 'init_ddcrew4p': ('BOARD_S18_5987', None),
+    'init_generic_5987': ('BOARD_S18_5987', None), 'init_ddcrew4p': ('BOARD_S18_5987', None), 'init_lghost': ('BOARD_S18_5987', None),
 }
 STATES = {'segas16b_state': 16, 'segas18_state': 18}
 
@@ -335,7 +341,7 @@ for m in re.finditer(r'^GAME\(\s*(\d+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s
     elif any(r.get('nodump') for r in roms[name] if r['name'] in REGIONS):
         why = 'a ROM is not dumped'
     else:
-        c = controls(resolve(inp), system)
+        c = controls(pad_ports(inp), system)
         if isinstance(c, str):
             why = 'controls (%s)' % c
     if why:
@@ -345,7 +351,7 @@ for m in re.finditer(r'^GAME\(\s*(\d+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s
     board, sim = INITS[init]
     games.append(dict(year=year, name=name, parent=parent, inp=inp, manu=manu, desc=title(desc), cpu=cpu,
                       mcu=sim or ('MCU_8751' if mcu else 'MCU_NONE'), mc8123=mc8123, board=board,
-                      system=system, ppi=init == 'init_ddcrew4p'))
+                      system=system, ppi=init == 'init_ddcrew4p', guns=init == 'init_lghost'))
 for name, why in skipped:
     print('left out: %-12s %s' % (name, why), file=sys.stderr)
 print('%d games' % len(games), file=sys.stderr)
@@ -387,7 +393,7 @@ for inp, system in sorted({(g['inp'], g['system']) for g in games}):
     for pn, shift in zip(DIP_PORTS[system], (0, 8)):
         for d in ports.get(pn, {}).get('dips', []):
             dsw = (dsw & ~(d['mask'] << shift)) | (d['default'] << shift)
-    codes, conds, players, buttons = controls(ports, system)
+    codes, conds, players, buttons = controls(pad_ports(inp), system)
     if conds:
         w('static const TS16CondBit conds_%s[] =\n{' % inp)
         for c in conds:
@@ -418,10 +424,10 @@ w('static const TS16Game s_Games[] =\n{')
 for g in games:
     regs = {REGIONS[r['name']]: r['size'] for r in roms[g['name']] if r['name'] in REGIONS}
     order = ('RGN_MAIN', 'RGN_TILES', 'RGN_SPRITES', 'RGN_SOUND', 'RGN_MCU', 'RGN_KEY', 'RGN_SOUNDKEY')
-    w('\t{%s, %s, %s, %s, %s,\n\t roms_%s, %d, {%s},\n\t &inputs_%s, %s, %s, %s, %s, %s},' % (
+    w('\t{%s, %s, %s, %s, %s,\n\t roms_%s, %d, {%s},\n\t &inputs_%s, %s, %s, %s, %s, %s, %s},' % (
         cstr(g['name']), cstr(g['parent'] if g['parent'] != '0' else ''), cstr(g['desc']), cstr(g['year']), cstr(g['manu']),
         g['name'], g['nroms'], ', '.join('0x%x' % regs.get(k, 0) for k in order),
-        g['inp'], g['board'], g['cpu'], g['mcu'], 'true' if g['mc8123'] else 'false', 'true' if g['ppi'] else 'false'))
+        g['inp'], g['board'], g['cpu'], g['mcu'], 'true' if g['mc8123'] else 'false', 'true' if g['ppi'] else 'false', 'true' if g['guns'] else 'false'))
 w('};')
 print('\n'.join(o))
 

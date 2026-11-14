@@ -83,6 +83,7 @@ struct TS16Game
 	u8 nBoard, nCpu, nMcu;
 	bool bMc8123;				// the sound program is encrypted
 	bool bPpi;				// System 18: the 8255 of the 4-player D. D. Crew
+	bool bGuns;				// System 18: Laser Ghost's guns, read by an MSM6253 A/D
 };
 
 static inline bool S18Board (u8 nBoard)	{ return nBoard >= BOARD_S18_SHADOW; }

@@ -71,6 +71,10 @@ unsigned s16_slow_work (void);
 void s16_set_player (int nPlayer, uint8_t nBits);
 /* bits 0-3 start 1-4, bits 4-7 coin 1-4 (active high) */
 void s16_set_system (uint8_t nBits);
+/* Laser Ghost: gun p (0-2) aims at x, y (0-255 each, left to right, top to
+   bottom); s16_guns () is the number of guns of the game (0 = none) */
+void s16_set_gun (int p, uint8_t nX, uint8_t nY);
+int s16_guns (void);
 void s16_set_dsw (uint16_t nDSW);
 
 /* sound: 48 kHz stereo frames made so far */
