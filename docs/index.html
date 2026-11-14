@@ -358,12 +358,6 @@ footer .lines { display: grid; gap: 8px; min-width: 0; }
 html, body { overflow-x: clip; }
 .lgshade .lg { margin: 0; }
 .me { color: #fff; font-weight: 700; }	/* the name in the text */
-/* a ghost from the game flies across the Laser Ghost band now and then */
-.lgA .wrap { position: relative; z-index: 1; }
-.lgA .ghost { position: absolute; left: 0; top: 0; width: 180px; image-rendering: pixelated; pointer-events: none; z-index: 2;
-  opacity: 0; filter: drop-shadow(0 0 6px rgba(140,255,90,.9)) drop-shadow(0 0 18px rgba(120,255,80,.55)); will-change: transform, opacity; }
-.lgA .ghost.trail { filter: blur(1px) drop-shadow(0 0 10px rgba(140,255,90,.8)); }
-@media (prefers-reduced-motion: reduce) { .lgA .ghost { display: none; } }
 </style>
 </head>
 <body>
@@ -429,7 +423,7 @@ html, body { overflow-x: clip; }
     <div class="shots">
       <figure><img src="img/list.png" width="640" height="448" alt="Game list"><figcaption>Game list</figcaption></figure>
       <figure><img src="img/golden-axe.png" width="640" height="448" alt="Golden Axe" loading="lazy"><figcaption>Golden Axe (System 16)</figcaption></figure>
-      <figure><div class="crt"><img src="img/composite.png" width="640" height="480" loading="lazy" alt="Detail of Alien Storm's hot dog van through the COMPOSITE filter: colour fringes and dot crawl on the edges"><div class="composite" aria-hidden="true"></div></div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
+      <figure><div class="crt"><img src="img/composite.png" width="640" height="480" loading="lazy" alt="Detail of the Moonwalker title through the COMPOSITE filter: colour fringes and dot crawl on the edges"><div class="composite" aria-hidden="true"></div></div><figcaption>Optional COMPOSITE filter (detail)</figcaption></figure>
       <figure><img src="img/dip-switches.png" width="640" height="448" alt="DIP switches over Golden Axe" loading="lazy"><figcaption>DIP switches</figcaption></figure>
     </div>
   </div>
@@ -627,40 +621,6 @@ document.fonts.ready.then(() => {
     draw(((now - t0) / 1000 % PERIOD) / PERIOD);
     requestAnimationFrame(tick);
   })(t0);
-})();
-
-/* Laser Ghost band: every 5-12 s a ghost floats across, bobbing and flickering,
-   with two fading afterimages, as in the films of the time */
-(() => {
-  const band = document.querySelector('.lgA');
-  if (!band || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const mk = (cls) => { const i = new Image(); i.src = 'img/lg-ghost.png'; i.alt = ''; i.className = 'ghost' + cls; band.appendChild(i); return i; };
-  const trail2 = mk(' trail'), trail1 = mk(' trail'), ghost = mk('');
-  const parts = [[ghost, 0, 1], [trail1, 90, .35], [trail2, 180, .18]];	// element, delay ms, opacity
-  function fly () {
-    const w = band.clientWidth, h = band.clientHeight;
-    const ltr = Math.random() < .5, size = 120 + Math.random() * 90;
-    const y0 = h * (.15 + Math.random() * .5), amp = 18 + Math.random() * 30, dur = 5200 + Math.random() * 2600;
-    const t0 = performance.now();
-    for (const [el] of parts) el.style.width = size + 'px';
-    function step (now) {
-      let live = false;
-      for (const [el, delay, op] of parts) {
-        const t = (now - t0 - delay) / dur;
-        if (t < 0 || t > 1) { el.style.opacity = 0; if (t < 0) live = true; continue; }
-        live = true;
-        const x = ltr ? -size + t * (w + size * 2) : w + size - t * (w + size * 2);
-        const y = y0 + Math.sin(t * Math.PI * 4) * amp;
-        const tilt = Math.sin(t * Math.PI * 6) * 8;
-        const flick = Math.random() < .04 ? .3 : 1;
-        el.style.opacity = op * flick * Math.min(1, t * 8, (1 - t) * 8);
-        el.style.transform = `translate(${x}px, ${y}px) rotate(${tilt}deg) scaleX(${ltr ? -1 : 1})`;
-      }
-      if (live) requestAnimationFrame(step); else setTimeout(fly, 5000 + Math.random() * 7000);
-    }
-    requestAnimationFrame(step);
-  }
-  setTimeout(fly, 2500);
 })();
 </script>
 </body>
